@@ -31,25 +31,26 @@ export default function OnboardingPage() {
 
       console.log('Synchronizing profile for:', { userId, phone, role });
 
-      // 1. Check if a profile with this phone ALREADY exists
-      const { data: existingProfile } = await supabase
-        .from('users')
-        .select('id')
-        .eq('phone', phone)
-        .single();
-
+      // 1. Force Sync: Ensure the database record for this phone uses the CURRENT Auth ID
+      // This prevents the "split identity" loop where auth.uid() != users.id
       const { error: upsertError } = await supabase.from('users').upsert({
-        id: existingProfile?.id || userId, // Keep existing ID if it exists
-        role,
+        id: userId,
         phone: phone,
+        role,
         name: '', 
         language_pref: 'english',
         is_active: true
       }, { onConflict: 'phone' });
 
       if (upsertError) {
-        console.error('Supabase Upsert Error:', upsertError);
-        throw new Error(upsertError.message || 'Database error occurred');
+        console.error('Supabase Sync Error:', upsertError);
+        // If upsert fails due to ID conflict, we try to update by phone instead
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ role, id: userId })
+          .eq('phone', phone);
+          
+        if (updateError) throw new Error(updateError.message);
       }
 
       toast.success('Welcome to Rozgar!');

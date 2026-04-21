@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
+// standard client for authenticated requests
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
@@ -19,10 +21,15 @@ export async function createSupabaseServerClient() {
             });
           } catch {
             // setAll called from a Server Component — safe to ignore
-            // because middleware is responsible for session refresh writes.
           }
         },
       },
     }
   );
 }
+
+// Admin client for bypass RLS
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);

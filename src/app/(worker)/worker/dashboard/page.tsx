@@ -24,23 +24,26 @@ export default function WorkerDashboard() {
   const [availableJobs, setAvailableJobs] = useState<any[]>([]);
 
   useEffect(() => {
+    const channelName = `jobs-nearby-${Math.random()}`; // Unique name to prevent collisions
+    const channel = supabase.channel(channelName);
+
     async function initDashboard() {
       try {
-        // 1. Get User
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 2. Fetch Worker Profile
         const { data: profile, error: profileError } = await supabase
           .from('workers')
-          .select('*, user:users(name, phone)')
+          .select('*, user:users!user_id(name, phone)')
           .eq('user_id', user.id)
           .single();
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error('Worker Profile Fetch Error:', profileError);
+          throw new Error(profileError.message || 'Profile not found');
+        }
         setWorkerProfile(profile);
 
-        // 3. Fetch Initial Jobs (matching pincodes)
         const targetPincodes = [profile.pincode, ...(profile.adjacent_pincodes || [])];
         
         const { data: jobs, error: jobsError } = await supabase
@@ -53,9 +56,8 @@ export default function WorkerDashboard() {
         if (jobsError) throw jobsError;
         setAvailableJobs(jobs);
 
-        // 4. Setup Real-time listener for new jobs in target pincodes
-        const subscription = supabase
-          .channel('new_jobs_nearby')
+        // Setup Real-time listener
+        channel
           .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
@@ -71,18 +73,19 @@ export default function WorkerDashboard() {
           })
           .subscribe();
 
-        return () => {
-          supabase.removeChannel(subscription);
-        };
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load dashboard');
+      } catch (err: any) {
+        console.error('Dashboard Initialization Error:', err);
+        toast.error(err.message || 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
     }
 
     initDashboard();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   if (loading) {
