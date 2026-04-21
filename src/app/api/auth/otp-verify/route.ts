@@ -44,38 +44,54 @@ export async function POST(req: Request) {
       });
 
       if (signInError) {
-        console.error('Sign-in Error during bypass:', signInError);
-        // If password doesn't match (e.g. changed manually), we try to reset it
-        await supabaseAdmin.auth.admin.updateUserById(
-          (await supabaseAdmin.auth.admin.listUsers()).data.users.find(u => u.phone === phone)?.id || '',
-          { password: mockPassword }
-        );
-        // Try sign in again
-        const retry = await supabase.auth.signInWithPassword({ phone, password: mockPassword });
-        if (retry.error) throw retry.error;
+        console.error('Sign-in Error during bypass:', signInError.message);
+        
+        // If password doesn't match, reset it. 
+        // Search for the user to get their UUID safely.
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = users.find(u => u.phone === phone || u.phone === phone.replace('+', ''));
+        
+        if (existingUser?.id) {
+          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, { password: mockPassword });
+          
+          // Final attempt to sign in
+          const retry = await supabase.auth.signInWithPassword({ phone, password: mockPassword });
+          if (retry.error) throw retry.error;
+        } else {
+          throw new Error('User not found and could not be created');
+        }
       }
 
-      // 3. Check role for redirect
+      // 3. Check role for redirect (Check both formats: +91 and clean)
       const cleanPhone = phone.replace(/^\+91/, '');
       const { data: userData } = await supabaseAdmin
         .from('users')
         .select('id, role')
-        .eq('phone', cleanPhone)
+        .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
         .single();
 
       if (!userData) {
-        return NextResponse.json({ redirect: '/onboarding', role: 'new_user' });
+        return NextResponse.json({ 
+          redirect: '/onboarding', 
+          role: 'new_user',
+          session: signInData.session 
+        });
       }
 
       const { role, id: userId } = userData;
       if (role === 'worker') {
         const { data: workerData } = await supabaseAdmin.from('workers').select('id').eq('user_id', userId).single();
-        return NextResponse.json({ redirect: workerData ? '/worker/dashboard' : '/worker/register', role: 'worker' });
+        return NextResponse.json({ 
+          redirect: workerData ? '/worker/dashboard' : '/worker/register', 
+          role: 'worker',
+          session: signInData.session
+        });
       }
       
       return NextResponse.json({ 
         redirect: role === 'customer' ? '/customer/dashboard' : '/partner/dashboard', 
-        role: role 
+        role: role,
+        session: signInData.session
       });
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -99,10 +115,18 @@ export async function POST(req: Request) {
       .single();
 
     if (!userData || userError) {
-      return NextResponse.json({ redirect: '/onboarding', role: 'new_user' });
+      return NextResponse.json({ 
+        redirect: '/onboarding', 
+        role: 'new_user',
+        session: session 
+      });
     }
 
-    return NextResponse.json({ redirect: userData.role === 'customer' ? '/customer/dashboard' : '/worker/dashboard', role: userData.role });
+    return NextResponse.json({ 
+      redirect: userData.role === 'customer' ? '/customer/dashboard' : '/worker/dashboard', 
+      role: userData.role,
+      session: session
+    });
   } catch (error: any) {
     console.error('OTP Verify Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,7 +1,11 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+/**
+ * NEXT.JS 16.2.4 PROXY
+ * This replaces the deprecated middleware.ts
+ */
+export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -56,7 +60,6 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Protected routes check
   const isProtectedRoute = 
     request.nextUrl.pathname.startsWith('/customer') || 
     request.nextUrl.pathname.startsWith('/worker') || 

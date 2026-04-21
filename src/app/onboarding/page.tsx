@@ -20,22 +20,37 @@ export default function OnboardingPage() {
   async function handleSelection(role: 'customer' | 'worker' | 'partner_node') {
     setLoading(role);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.phone) {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.user) {
         throw new Error('No valid session found. Please login again.');
       }
 
-      const phone = session.user.phone.replace(/^\+91/, '');
+      const phone = session.user.phone?.replace(/^\+91/, '') || '';
+      const userId = session.user.id;
 
-      const { error } = await supabase.from('users').insert({
+      console.log('Synchronizing profile for:', { userId, phone, role });
+
+      // 1. Check if a profile with this phone ALREADY exists
+      const { data: existingProfile } = await supabase
+        .from('users')
+        .select('id')
+        .eq('phone', phone)
+        .single();
+
+      const { error: upsertError } = await supabase.from('users').upsert({
+        id: existingProfile?.id || userId, // Keep existing ID if it exists
         role,
         phone: phone,
-        name: '', // User will set this later in profile
+        name: '', 
         language_pref: 'english',
         is_active: true
-      });
+      }, { onConflict: 'phone' });
 
-      if (error) throw error;
+      if (upsertError) {
+        console.error('Supabase Upsert Error:', upsertError);
+        throw new Error(upsertError.message || 'Database error occurred');
+      }
 
       toast.success('Welcome to Rozgar!');
       
@@ -46,7 +61,7 @@ export default function OnboardingPage() {
       
       router.refresh();
     } catch (err: any) {
-      console.error(err);
+      console.error('Onboarding Error:', err);
       toast.error(err.message || 'Failed to create profile');
     } finally {
       setLoading(null);

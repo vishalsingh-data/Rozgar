@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -106,6 +107,11 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Invalid OTP');
+
+      // MANUALLY SET SESSION FOR PERSISTENCE
+      if (data.session) {
+        await supabase.auth.setSession(data.session);
+      }
 
       toast.success('Login successful!');
       

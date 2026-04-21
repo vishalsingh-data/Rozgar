@@ -38,7 +38,7 @@ export default function PartnerDashboard() {
         // 1. Fetch Workers registered by this partner
         const { data: workersData, error: workersError } = await supabase
           .from('workers')
-          .select('*, user:users(name, phone)')
+          .select('*, users!user_id(name, phone)')
           .eq('partner_node_id', user.id);
 
         if (workersError) throw workersError;
@@ -48,7 +48,7 @@ export default function PartnerDashboard() {
         const { data: ledgerData } = await supabase
           .from('partner_ledger')
           .select('amount')
-          .eq('partner_id', user.id)
+          .eq('partner_node_id', user.id)
           .eq('status', 'pending');
 
         const pendingAmount = ledgerData?.reduce((acc, curr) => acc + curr.amount, 0) || 0;
@@ -58,9 +58,15 @@ export default function PartnerDashboard() {
           activeJobs: 0, // Would query jobs table in real app
           pendingLedger: pendingAmount
         });
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load dashboard');
+      } catch (err: any) {
+        console.error('Dashboard Fetch Error:', err);
+        // Log more details if it's a Supabase error
+        if (err.message) {
+          console.error('Error Message:', err.message);
+          console.error('Error Code:', err.code);
+          console.error('Error Details:', err.details);
+        }
+        toast.error(err.message || 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
@@ -129,16 +135,16 @@ export default function PartnerDashboard() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             {workers.map((worker) => (
-              <Card key={worker.id} className="overflow-hidden border-zinc-200 shadow-sm hover:shadow-md transition-all dark:border-zinc-800">
+              <Card key={worker.user_id} className="overflow-hidden border-zinc-200 shadow-sm hover:shadow-md transition-all dark:border-zinc-800">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="size-12 rounded-xl bg-zinc-100 flex items-center justify-center font-bold text-zinc-500 dark:bg-zinc-800">
-                        {worker.user?.name?.charAt(0)}
+                        {worker.users?.name?.charAt(0)}
                       </div>
                       <div>
-                        <h3 className="font-bold text-zinc-900 dark:text-white">{worker.user?.name}</h3>
-                        <p className="text-xs text-zinc-500 font-medium">{worker.user?.phone}</p>
+                        <h3 className="font-bold text-zinc-900 dark:text-white">{worker.users?.name}</h3>
+                        <p className="text-xs text-zinc-500 font-medium">{worker.users?.phone}</p>
                       </div>
                     </div>
                     {worker.aadhar_verified ? (
