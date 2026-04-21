@@ -1,233 +1,336 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sora, DM_Sans } from 'next/font/google';
 import { 
-  Sparkles, 
-  MapPin, 
-  IndianRupee, 
-  Wand2, 
-  ArrowRight,
+  CheckCircle2, 
+  AlertCircle,
+  ArrowLeft,
   Loader2,
-  AlertCircle
+  ChevronRight,
+  ShieldCheck,
+  Info,
+  Clock,
+  MapPin,
+  Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import ImageUpload from '@/components/ImageUpload';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import ImageUpload from '@/components/ImageUpload';
+import { cn } from '@/lib/utils';
+
+const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
+const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
+
+type EstimateResult = {
+  interpreted_category: string;
+  ai_base_price: number | null;
+  confidence: number;
+  time_estimate: string;
+  damage_summary: string;
+  worker_tags_required: string[];
+  is_inspection: boolean;
+};
 
 export default function PostJobPage() {
   const router = useRouter();
+  const [step, setStep] = useState(1); // 1: Input, 2: Result, 3: Loading
+  const [isAnalysing, setIsAnalysing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+
+  // Form State
   const [description, setDescription] = useState('');
   const [pincode, setPincode] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [parsing, setParsing] = useState(false);
+  const [estimate, setEstimate] = useState<EstimateResult | null>(null);
   
-  const [aiResult, setAiResult] = useState<{
-    category: string;
-    tags: string[];
-    estimated_price: number;
-    confidence: number;
-  } | null>(null);
+  // Background AI fetching
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // ── AI Parsing ─────────────────────────────────────────────────────────────
-  async function handleParse() {
-    if (!description || description.length < 10) {
-      toast.error('Please provide a bit more detail first');
+  useEffect(() => {
+    async function getSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) setCustomerId(session.user.id);
+      else {
+        toast.error('Session expired. Please login again.');
+        router.push('/login');
+      }
+    }
+    getSession();
+  }, [router]);
+
+  // Background Estimation Logic
+  useEffect(() => {
+    if (description.length < 20) {
+      setEstimate(null);
       return;
     }
 
-    setParsing(true);
-    try {
-      const res = await fetch('/api/jobs/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description }),
-      });
-      
-      if (!res.ok) throw new Error('Failed to parse');
-      
-      const data = await res.json();
-      setAiResult(data);
-      toast.success('AI analyzed your request!');
-    } catch (error) {
-      console.error(error);
-      toast.error('AI analysis failed, but you can still post.');
-    } finally {
-      setParsing(false);
-    }
-  }
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-  // ── Final Submit ───────────────────────────────────────────────────────────
-  async function handleSubmit() {
-    if (!description || !pincode) {
-      toast.error('Description and pincode are required');
+    debounceTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/ai/estimate-job', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEstimate(data);
+        }
+      } catch (err) {
+        console.error('Background AI failed:', err);
+      }
+    }, 500);
+
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
+  }, [description]);
+
+  const handleNext = () => {
+    if (description.length < 20) return;
+    if (!pincode || pincode.length < 6) {
+      toast.error('Please enter a valid 6-digit pincode');
       return;
     }
+
+    if (!estimate) {
+      // If AI hasn't finished, show loading and wait
+      setIsAnalysing(true);
+      const pollTimer = setInterval(async () => {
+        if (estimate) {
+          clearInterval(pollTimer);
+          setIsAnalysing(false);
+          setStep(2);
+        }
+      }, 500);
+      
+      // Safety timeout
+      setTimeout(() => {
+        if (!estimate) {
+          clearInterval(pollTimer);
+          setIsAnalysing(false);
+          toast.error('AI is taking longer than usual. Please try again.');
+        }
+      }, 5000);
+    } else {
+      setStep(2);
+    }
+  };
+
+  const handleCreateJob = async () => {
+    if (!customerId || !estimate || !pincode) return;
 
     setLoading(true);
     try {
-      // 1. Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // For demo/seed testing, if no user, we'll use Priya's ID from seed
-      // (Normally redirect to login, but let's be robust for the first test)
-      const customerId = user?.id || 'd0fed3ab-e144-4578-be09-af81ebab5b0a';
+      const res = await fetch('/api/jobs/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: customerId,
+          raw_description: description,
+          interpreted_category: estimate.interpreted_category,
+          worker_tags_required: estimate.worker_tags_required,
+          ai_base_price: estimate.ai_base_price,
+          ai_confidence: estimate.confidence,
+          is_inspection: estimate.is_inspection,
+          photo_url: photoUrl,
+          pincode: pincode
+        })
+      });
 
-      const { data, error } = await supabase.from('jobs').insert({
-        customer_id: customerId,
-        raw_description: description,
-        interpreted_category: aiResult?.category || 'General',
-        worker_tags_required: aiResult?.tags || [],
-        ai_base_price: aiResult?.estimated_price || null,
-        ai_confidence: aiResult?.confidence || 0,
-        photo_url: photoUrl || null,
-        pincode: pincode,
-        status: 'pending'
-      }).select().single();
+      if (!res.ok) throw new Error('Job creation failed');
 
-      if (error) throw error;
-
-      toast.success('Job posted successfully!');
-      router.push(`/customer/job/${data.id}`);
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to post job');
+      const job = await res.json();
+      toast.success('Job broadcasted!');
+      router.push(`/customer/job/${job.id}`);
+    } catch (err: any) {
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  if (isAnalysing) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#F8F9F0] px-10 text-center">
+        <div className="flex gap-2 mb-6">
+          <div className="size-3 rounded-full bg-[#1B4332] animate-bounce [animation-delay:-0.3s]"></div>
+          <div className="size-3 rounded-full bg-[#40C057] animate-bounce [animation-delay:-0.15s]"></div>
+          <div className="size-3 rounded-full bg-[#1B4332] animate-bounce"></div>
+        </div>
+        <h2 className={`${sora.className} text-2xl text-[#1B4332]`}>Analysing your job...</h2>
+        <p className="mt-2 text-sm text-zinc-400">Comparing with 10,000+ local market rates</p>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-20 dark:bg-black">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b bg-white/80 px-6 py-4 backdrop-blur-md dark:bg-black/80">
-        <h1 className="text-xl font-bold tracking-tight">Post a New Job</h1>
-      </header>
-
-      <main className="mx-auto max-w-lg space-y-8 p-6">
+    <div className={cn("flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] px-6", dmSans.className)}>
+      <div className="w-full max-w-[430px] flex flex-col min-h-screen">
         
-        {/* Step 1: Description */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-zinc-500">
-            <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs text-white">1</span>
-            What do you need help with?
-          </div>
-          <Textarea 
-            placeholder="e.g., My ceiling fan is making a clicking sound and needs repair. Also one switch in the bedroom is loose."
-            className="min-h-[120px] rounded-xl border-zinc-200 bg-white text-lg shadow-sm focus:ring-primary/20"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() => !aiResult && handleParse()}
-          />
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full gap-2 rounded-full border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
-            onClick={handleParse}
-            disabled={parsing}
-          >
-            {parsing ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-            {aiResult ? 'Re-analyze with AI' : 'Analyze with AI'}
-          </Button>
-        </section>
-
-        {/* AI Insight Card */}
-        {aiResult && (
-          <div className="animate-in fade-in slide-in-from-top-4 rounded-2xl border border-primary/20 bg-primary/5 p-5 duration-500">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
-                <Sparkles className="size-4" />
-                AI Analysis
-              </div>
-              {aiResult.confidence > 0.8 && (
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30">
-                  High Confidence
-                </Badge>
-              )}
-            </div>
+        {/* Step 1: Input */}
+        {step === 1 && (
+          <div className="flex flex-col flex-1 justify-center py-12">
+            <h1 className={cn(sora.className, "text-4xl text-[#1B4332] leading-tight text-center mb-10")}>
+              What do you <br /> need done?
+            </h1>
             
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs text-zinc-500">Detected Category</p>
-                <p className="text-lg font-bold">{aiResult.category}</p>
+            <div className="space-y-6">
+              <div className="relative">
+                <Textarea 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Be as specific as you can. Example: Ceiling fan makes clicking noise and stopped spinning."
+                  className="min-h-[200px] rounded-3xl border-none bg-white p-8 text-lg shadow-sm focus-visible:ring-2 focus-visible:ring-[#40C057] transition-all"
+                />
+                <p className="mt-3 text-center text-xs text-zinc-400 font-medium">
+                  Repair, cleaning, labour, cooking, driving — anything.
+                </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {aiResult.tags.map(tag => (
-                  <Badge key={tag} variant="outline" className="rounded-full bg-white capitalize">
-                    {tag}
-                  </Badge>
-                ))}
+              <div className="rounded-3xl bg-white p-6 shadow-sm border border-zinc-100/50">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Your area pincode (6 digits)</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-0 top-1/2 -translate-y-1/2 size-5 text-[#40C057]" />
+                  <Input 
+                    type="number"
+                    maxLength={6}
+                    value={pincode}
+                    onChange={(e) => setPincode(e.target.value.slice(0,6))}
+                    placeholder="560XXX"
+                    className="h-10 border-none bg-transparent pl-8 text-xl font-black text-[#1B4332] focus-visible:ring-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-12">
+              <Button 
+                disabled={description.length < 20 || pincode.length < 6}
+                onClick={handleNext}
+                className="h-20 w-full rounded-full bg-[#1B4332] text-xl font-bold text-white shadow-2xl shadow-[#1B4332]/20 transition-all active:scale-95 disabled:opacity-30"
+              >
+                Next
+                <ChevronRight className="ml-2 size-6" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Result */}
+        {step === 2 && estimate && (
+          <div className="py-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <button onClick={() => setStep(1)} className="flex items-center text-zinc-400 hover:text-[#1B4332]">
+              <ArrowLeft className="mr-2 size-4" />
+              <span className="text-xs font-bold uppercase tracking-widest">Edit Description</span>
+            </button>
+
+            <Card className="rounded-[40px] border-none bg-white shadow-2xl shadow-[#1B4332]/10 overflow-hidden">
+              <CardContent className="p-0">
+                <div className="bg-[#1B4332] p-10 text-white">
+                  <div className="mb-6 flex justify-between items-start">
+                    <Badge className={cn(
+                      "rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest border-none",
+                      estimate.confidence >= 0.70 ? "bg-[#40C057] text-[#1B4332]" : "bg-amber-400 text-[#1B4332]"
+                    )}>
+                      {estimate.confidence >= 0.70 ? (
+                        <span className="flex items-center gap-1"><CheckCircle2 className="size-3" /> High Confidence</span>
+                      ) : (
+                        <span className="flex items-center gap-1"><AlertCircle className="size-3" /> Inspection Mode</span>
+                      )}
+                    </Badge>
+                  </div>
+                  <h2 className={cn(sora.className, "text-3xl leading-tight mb-2")}>{estimate.interpreted_category}</h2>
+                  <p className="text-sm opacity-60 font-medium leading-relaxed">{estimate.damage_summary}</p>
+                </div>
+
+                <div className="p-10 space-y-8">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Fair Price Estimate</span>
+                      <p className="text-5xl font-black text-[#1B4332] tracking-tighter mt-1">
+                        {estimate.is_inspection ? '₹100' : `₹${estimate.ai_base_price}`}
+                      </p>
+                      {estimate.is_inspection && (
+                        <p className="text-[10px] font-bold text-amber-600 uppercase mt-1">Initial Visit Fee</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <Clock className="ml-auto mb-1 size-5 text-[#40C057]" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Duration</span>
+                      <p className="font-bold text-[#1B4332]">{estimate.time_estimate}</p>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-zinc-100 w-full" />
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-zinc-500">
+                      <span className="text-sm font-medium">Platform Fee</span>
+                      <span className="text-sm font-bold">FREE</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[#1B4332]">
+                      <span className="text-sm font-bold">Total Estimate</span>
+                      <span className="text-xl font-black">
+                        {estimate.is_inspection ? '₹100' : `₹${estimate.ai_base_price}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6">
+              <div className="rounded-[32px] bg-white p-8 shadow-sm border border-zinc-100/50">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Camera className="size-5 text-[#40C057]" />
+                    <span className="text-sm font-bold text-[#1B4332]">Add Photo (Optional)</span>
+                  </div>
+                  {photoUrl && <CheckCircle2 className="size-5 text-[#40C057]" />}
+                </div>
+                <p className="text-xs text-zinc-400 mb-6">A photo helps workers quote accurately.</p>
+                <div className="flex justify-center">
+                  <ImageUpload 
+                    bucket="rozgar-uploads"
+                    path={`job-photos/${customerId}`}
+                    onUploadComplete={(url) => setPhotoUrl(url)}
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center gap-4 rounded-xl bg-white p-3 shadow-sm">
-                <div className="flex size-10 items-center justify-center rounded-full bg-zinc-100">
-                  <IndianRupee className="size-5 text-zinc-600" />
+              <div className="flex flex-col items-center gap-4">
+                <Button 
+                  disabled={loading}
+                  onClick={handleCreateJob}
+                  className={cn(
+                    "h-24 w-full rounded-[40px] text-2xl font-black text-white shadow-2xl transition-all active:scale-95",
+                    estimate.is_inspection ? "bg-amber-500 shadow-amber-500/20" : "bg-[#40C057] shadow-[#40C057]/20"
+                  )}
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : (
+                    estimate.is_inspection ? 'Book Inspection — ₹100' : 'Find Workers — Free'
+                  )}
+                </Button>
+                <div className="flex items-center gap-1.5 opacity-40">
+                  <ShieldCheck className="size-3" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">No Hidden Charges</span>
                 </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Estimated Labor Cost</p>
-                  <p className="text-lg font-bold">₹{aiResult.estimated_price}</p>
-                </div>
-                <AlertCircle className="ml-auto size-4 text-zinc-300" />
               </div>
             </div>
           </div>
         )}
 
-        {/* Step 2: Photo */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-zinc-500">
-            <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs text-white">2</span>
-            Add a photo (recommended)
-          </div>
-          <ImageUpload 
-            bucket="jobs"
-            path="requests"
-            label=""
-            optional
-            onUpload={(url) => setPhotoUrl(url)}
-          />
-        </section>
-
-        {/* Step 3: Location */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-zinc-500">
-            <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs text-white">3</span>
-            Where is the work?
-          </div>
-          <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-zinc-400" />
-            <Input 
-              placeholder="Enter Pincode (e.g. 560068)"
-              className="h-12 pl-10 rounded-xl border-zinc-200 bg-white shadow-sm"
-              value={pincode}
-              onChange={(e) => setPincode(e.target.value)}
-              maxLength={6}
-            />
-          </div>
-        </section>
-
-        {/* Footer CTA */}
-        <div className="pt-6">
-          <Button 
-            className="h-14 w-full gap-2 rounded-2xl text-lg font-bold shadow-lg shadow-primary/20"
-            disabled={loading || !description || !pincode}
-            onClick={handleSubmit}
-          >
-            {loading ? <Loader2 className="size-5 animate-spin" /> : 'Post Job Now'}
-            {!loading && <ArrowRight className="size-5" />}
-          </Button>
-          <p className="mt-4 text-center text-xs text-zinc-400">
-            By posting, you agree to our Terms of Service.
-          </p>
-        </div>
-
-      </main>
+      </div>
     </div>
   );
 }

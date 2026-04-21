@@ -4,14 +4,14 @@ import {
 } from '@google/generative-ai';
 
 export async function estimateWithGemini(
-  description: string,
+  prompt: string,
   base64Image?: string,
   mimeType?: string
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  const parts: Part[] = [{ text: description }];
+  const parts: Part[] = [{ text: prompt }];
 
   if (base64Image && mimeType) {
     parts.push({

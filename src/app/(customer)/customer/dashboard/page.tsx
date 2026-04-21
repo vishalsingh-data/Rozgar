@@ -1,183 +1,310 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sora, DM_Sans } from 'next/font/google';
 import { 
   Plus, 
   Clock, 
-  CheckCircle2, 
+  ShieldCheck, 
+  History, 
   MapPin, 
-  Briefcase,
   ChevronRight,
   Loader2,
-  Shield
+  AlertCircle,
+  Bell,
+  Search,
+  CheckCircle2,
+  Wrench,
+  Navigation
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { formatDistanceToNow, isAfter } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
+const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
+
+type Job = {
+  id: string;
+  created_at: string;
+  interpreted_category: string;
+  status: string;
+  ai_base_price: number | null;
+  warranty_expires_at: string | null;
+  worker?: { name: string };
+};
 
 export default function CustomerDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [jobs, setJobs] = useState<any[]>([]);
   const [userName, setUserName] = useState('');
+  const [jobs, setJobs] = useState<Job[]>([]);
 
   useEffect(() => {
-    async function fetchData() {
+    async function initDashboard() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
           router.push('/login');
           return;
         }
 
-        // Fetch user profile
+        // Fetch User Profile
         const { data: profile } = await supabase
           .from('users')
           .select('name')
-          .eq('id', user.id)
+          .eq('id', session.user.id)
           .single();
         
-        setUserName(profile?.name || 'Customer');
+        if (profile) setUserName(profile.name);
 
-        // Fetch customer's jobs
-        const { data: jobsData, error: jobsError } = await supabase
+        // Fetch All Jobs
+        const { data: jobsData, error } = await supabase
           .from('jobs')
-          .select('*')
-          .eq('customer_id', user.id)
+          .select('*, worker:users!accepted_worker_id(name)')
+          .eq('customer_id', session.user.id)
           .order('created_at', { ascending: false });
 
-        if (jobsError) throw jobsError;
+        if (error) throw error;
         setJobs(jobsData || []);
       } catch (err: any) {
-        console.error('Dashboard Load Error:', err);
-        toast.error('Failed to load jobs');
+        console.error('Customer Dashboard Load Error:', err);
+        toast.error(err.message || 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
     }
 
-    fetchData();
+    initDashboard();
   }, [router]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fdfdfb]">
-        <Loader2 className="size-8 animate-spin text-[#22c55e]" />
-      </div>
-    );
-  }
+  const activeJobs = jobs.filter(j => 
+    ['pending', 'bidding', 'assigned', 'in_transit', 'on_site'].includes(j.status)
+  );
+
+  const warranties = jobs.filter(j => 
+    j.warranty_expires_at && isAfter(new Date(j.warranty_expires_at), new Date())
+  );
+
+  const pastJobs = jobs.filter(j => 
+    !activeJobs.find(aj => aj.id === j.id) && !warranties.find(wj => wj.id === j.id)
+  );
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-screen bg-[#fdfdfb] pb-24 dark:bg-black">
-      {/* Header */}
-      <div className="bg-white px-6 pb-10 pt-16 shadow-sm dark:bg-zinc-900">
-        <div className="mx-auto max-w-[430px]">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <div className="size-8 rounded-lg bg-[#022c22] flex items-center justify-center text-white font-bold">R</div>
-              <span className="font-bold text-[#022c22] dark:text-white">Rozgar</span>
-            </div>
-            <div className="size-10 rounded-full bg-zinc-100 flex items-center justify-center dark:bg-zinc-800">
-              <span className="text-xs font-bold text-zinc-500">{userName.charAt(0)}</span>
-            </div>
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24", dmSans.className)}>
+      
+      {/* Navbar */}
+      <nav className="sticky top-0 z-20 bg-[#F8F9F0]/80 backdrop-blur-md px-6 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="size-10 rounded-2xl bg-[#1B4332] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[#1B4332]/20">R</div>
+          <h2 className={cn(sora.className, "text-xl text-[#1B4332] tracking-tight")}>Rozgar</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="rounded-full bg-white shadow-sm">
+            <Bell className="size-5 text-[#1B4332]" />
+          </Button>
+          <div className="size-10 rounded-full bg-[#40C057]/10 border-2 border-white flex items-center justify-center">
+            <span className="text-sm font-black text-[#1B4332]">{userName.charAt(0)}</span>
           </div>
-          
-          <h1 className="text-3xl font-black text-[#022c22] dark:text-white">Namaste, {userName.split(' ')[0]}</h1>
-          <p className="mt-1 text-zinc-500 font-medium">What help do you need today?</p>
-          
+        </div>
+      </nav>
+
+      <main className="px-6 space-y-10">
+        {/* Greeting & CTA */}
+        <div className="space-y-6">
+          <div>
+            <h1 className={cn(sora.className, "text-3xl text-[#1B4332] leading-tight")}>
+              Hello, <br />{userName.split(' ')[0]}!
+            </h1>
+            <p className="mt-2 text-zinc-500 font-medium italic">What can we fix for you today?</p>
+          </div>
+
           <Button 
-            className="mt-8 h-14 w-full rounded-2xl bg-[#22c55e] text-lg font-bold text-white shadow-lg shadow-[#22c55e]/20 hover:bg-[#16a34a]"
             onClick={() => router.push('/customer/post-job')}
+            className="h-20 w-full rounded-[32px] bg-[#1B4332] text-xl font-black text-white shadow-2xl shadow-[#1B4332]/30 group transition-all active:scale-95"
           >
-            <Plus className="mr-2 size-5" />
+            <div className="size-10 rounded-full bg-[#40C057] flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+              <Plus className="size-6 text-[#1B4332]" strokeWidth={3} />
+            </div>
             Post a New Job
           </Button>
         </div>
-      </div>
 
-      {/* Content */}
-      <main className="mx-auto max-w-[430px] px-6 pt-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-[#022c22] dark:text-white">Your Recent Jobs</h2>
-          <Badge variant="outline" className="rounded-full border-zinc-200 text-zinc-400">{jobs.length}</Badge>
-        </div>
-
-        {jobs.length > 0 ? (
-          <div className="space-y-4">
-            {jobs.map((job) => (
-              <Card key={job.id} className="overflow-hidden border-zinc-100 bg-white shadow-sm dark:bg-zinc-900 dark:border-zinc-800">
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <Badge className={`rounded-full px-3 py-1 text-[10px] uppercase font-black ${getStatusColor(job.status)}`}>
-                      {job.status}
-                    </Badge>
-                    <span className="text-[10px] font-bold text-zinc-400">{new Date(job.created_at).toLocaleDateString()}</span>
-                  </div>
-                  
-                  <h3 className="font-bold text-zinc-900 dark:text-white line-clamp-1">{job.raw_description}</h3>
-                  
-                  <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500 font-medium">
-                    <div className="flex items-center gap-1">
-                      <MapPin className="size-3" />
-                      {job.pincode || 'Location N/A'}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Briefcase className="size-3" />
-                      {job.interpreted_category || 'General'}
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex items-center justify-between border-t pt-4">
-                    <p className="text-lg font-black text-[#022c22] dark:text-white">
-                      ₹{job.final_price || job.ai_base_price || '--'}
-                    </p>
-                    <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs font-bold text-[#22c55e]">
-                      View Details
-                      <ChevronRight className="size-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        {/* Active Jobs */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+              <Navigation className="size-5 text-[#40C057]" />
+              Active Jobs
+            </h3>
+            {activeJobs.length > 0 && <span className="text-xs font-black text-[#40C057] uppercase tracking-widest">{activeJobs.length} Active</span>}
           </div>
-        ) : (
-          <div className="py-16 text-center rounded-3xl bg-zinc-50/50 border-2 border-dashed border-zinc-100 dark:bg-zinc-900/20 dark:border-zinc-800">
-            <div className="mx-auto size-16 rounded-full bg-white flex items-center justify-center shadow-sm mb-4 dark:bg-zinc-800">
-              <Shield className="size-8 text-zinc-200" />
+
+          {activeJobs.length > 0 ? (
+            <div className="space-y-4">
+              {activeJobs.map(job => (
+                <JobDashboardCard key={job.id} job={job} onClick={() => router.push(`/customer/job/${job.id}`)} />
+              ))}
             </div>
-            <h3 className="font-bold text-zinc-900 dark:text-white">No jobs yet</h3>
-            <p className="mt-1 text-sm text-zinc-500 px-10">Post your first job and find verified workers in seconds.</p>
-          </div>
-        )}
-      </main>
+          ) : (
+            <EmptyState 
+              icon={<Search className="size-10" />} 
+              message="No jobs currently active. Need help with a repair?" 
+            />
+          )}
+        </section>
 
-      {/* Mobile Nav Placeholder */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-white/80 backdrop-blur-md px-10 py-4 flex justify-between dark:bg-zinc-900/80 dark:border-zinc-800">
-        <NavIcon icon={<Briefcase className="size-6" />} label="Jobs" active />
-        <NavIcon icon={<Clock className="size-6" />} label="History" />
-        <NavIcon icon={<CheckCircle2 className="size-6" />} label="Safety" />
+        {/* Active Warranties */}
+        {warranties.length > 0 && (
+          <section className="space-y-6">
+            <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+              <ShieldCheck className="size-5 text-[#40C057]" />
+              Active Warranties
+            </h3>
+            <div className="space-y-4">
+              {warranties.map(job => (
+                <WarrantyCard key={job.id} job={job} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Past Jobs */}
+        <section className="space-y-6">
+          <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+            <History className="size-5 text-zinc-400" />
+            Past Jobs
+          </h3>
+          {pastJobs.length > 0 ? (
+            <div className="space-y-3">
+              {pastJobs.map(job => (
+                <div key={job.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-zinc-100/50">
+                  <div className="flex items-center gap-4">
+                    <div className="size-10 rounded-xl bg-zinc-50 flex items-center justify-center text-zinc-400">
+                      <CheckCircle2 className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[#1B4332]">{job.interpreted_category}</p>
+                      <p className="text-[10px] text-zinc-400 uppercase font-black">{formatDistanceToNow(new Date(job.created_at))} ago</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="size-4 text-zinc-300" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400 italic text-center py-4">No completed jobs yet.</p>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function JobDashboardCard({ job, onClick }: { job: Job, onClick: () => void }) {
+  const statusColors: any = {
+    pending: 'bg-amber-100 text-amber-700',
+    bidding: 'bg-emerald-100 text-emerald-700',
+    assigned: 'bg-blue-100 text-blue-700',
+    on_site: 'bg-purple-100 text-purple-700',
+  };
+
+  return (
+    <Card onClick={onClick} className="rounded-3xl border-none bg-white shadow-xl shadow-[#1B4332]/5 overflow-hidden active:scale-95 transition-all cursor-pointer">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="space-y-1">
+            <h4 className="text-xl font-black text-[#1B4332] leading-tight">{job.interpreted_category}</h4>
+            <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium">
+              <Clock className="size-3" />
+              {formatDistanceToNow(new Date(job.created_at))} ago
+            </div>
+          </div>
+          <Badge className={cn("rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-none", statusColors[job.status] || 'bg-zinc-100')}>
+            {job.status.replace('_', ' ')}
+          </Badge>
+        </div>
+        
+        <div className="flex items-center justify-between pt-4 border-t border-zinc-50">
+          <div className="flex items-center gap-2">
+            <div className="size-8 rounded-full bg-zinc-50 flex items-center justify-center">
+              <Wrench className="size-4 text-zinc-400" />
+            </div>
+            <span className="text-xs font-bold text-zinc-500">
+              {job.status === 'pending' ? 'Finding workers...' : 'Active Job'}
+            </span>
+          </div>
+          <ChevronRight className="size-5 text-zinc-300" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WarrantyCard({ job }: { job: Job }) {
+  return (
+    <Card className="rounded-3xl border-2 border-dashed border-[#40C057]/30 bg-white p-6">
+      <div className="flex items-start justify-between">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="size-8 rounded-xl bg-[#40C057]/10 flex items-center justify-center text-[#40C057]">
+              <ShieldCheck className="size-5" />
+            </div>
+            <p className="text-sm font-black text-[#1B4332]">{job.interpreted_category}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Worker</p>
+            <p className="text-xs font-bold text-[#1B4332]">{job.worker?.name || 'Verified Pro'}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Expires</p>
+            <p className="text-xs font-bold text-emerald-600">{new Date(job.warranty_expires_at!).toLocaleDateString()}</p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" className="rounded-xl border-zinc-200 text-xs font-bold h-10 px-4">
+          File Claim
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function EmptyState({ icon, message }: { icon: React.ReactNode, message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 px-10 bg-white rounded-[32px] border-2 border-dashed border-zinc-100 text-center">
+      <div className="mb-4 text-zinc-200">{icon}</div>
+      <p className="text-sm font-medium text-zinc-400 leading-relaxed">{message}</p>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex min-h-screen w-full flex-col bg-[#F8F9F0] px-6 py-8 space-y-8">
+      <div className="flex items-center justify-between">
+        <Skeleton className="size-10 rounded-2xl" />
+        <div className="flex gap-2">
+          <Skeleton className="size-10 rounded-full" />
+          <Skeleton className="size-10 rounded-full" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+      <Skeleton className="h-20 w-full rounded-[32px]" />
+      <div className="space-y-4">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-32 w-full rounded-[32px]" />
       </div>
     </div>
   );
-}
-
-function NavIcon({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
-  return (
-    <div className={`flex flex-col items-center gap-1 ${active ? 'text-[#22c55e]' : 'text-zinc-300'}`}>
-      {icon}
-      <span className="text-[10px] font-bold uppercase">{label}</span>
-    </div>
-  );
-}
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'pending': return 'bg-amber-100 text-amber-700';
-    case 'assigned': return 'bg-blue-100 text-blue-700';
-    case 'complete': return 'bg-emerald-100 text-emerald-700';
-    default: return 'bg-zinc-100 text-zinc-700';
-  }
 }
