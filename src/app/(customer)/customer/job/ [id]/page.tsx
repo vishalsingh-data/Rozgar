@@ -222,7 +222,7 @@ export default function JobDetailsPage() {
                     bid={bid} 
                     isExpanded={expandedBid === bid.id}
                     onToggle={() => setExpandedBid(expandedBid === bid.id ? null : bid.id)}
-                    onSelect={() => handleSelectWorker(bid.worker_id, bid.worker_profile.name)}
+                    onSelect={() => handleSelectWorker(bid.worker_id)}
                   />
                 ))}
               </div>
@@ -245,92 +245,26 @@ export default function JobDetailsPage() {
     </div>
   );
 
-  async function handleSelectWorker(workerId: string, workerName: string) {
+  async function handleSelectWorker(workerId: string) {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const customerPhone = session?.user?.phone || '';
+      // Logic: Update job with assigned_worker_id and status
+      const slaDeadline = new Date(Date.now() + 45 * 60 * 1000).toISOString(); // 45 mins from now
+      const { error } = await supabase
+        .from('jobs')
+        .update({
+          accepted_worker_id: workerId,
+          status: 'assigned',
+          sla_deadline: slaDeadline
+        })
+        .eq('id', jobId);
 
-      // 1. Calculate convenience fee
-      const feeAmount = (job.ai_base_price <= 300 || job.is_inspection) ? 25 : 49;
-
-      // 2. Create Razorpay Order
-      const orderRes = await fetch('/api/jobs/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, amount: feeAmount })
-      });
-
-      if (!orderRes.ok) throw new Error('Failed to initiate payment');
-      const order = await orderRes.json();
-
-      // 3. Load Razorpay Script
-      const loadScript = () => {
-        return new Promise((resolve) => {
-          const script = document.createElement('script');
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-          script.onload = () => resolve(true);
-          script.onerror = () => resolve(false);
-          document.head.appendChild(script);
-        });
-      };
-
-      const isLoaded = await loadScript();
-      if (!isLoaded) throw new Error('Failed to load payment gateway');
-
-      // 4. Open Checkout
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'Rozgar',
-        description: 'Platform convenience fee',
-        order_id: order.id,
-        prefill: {
-          contact: customerPhone,
-        },
-        theme: {
-          color: '#1B4332',
-        },
-        handler: async function (response: any) {
-          // 5. Verify & Finalize on Success
-          try {
-            setLoading(true);
-            const verifyRes = await fetch('/api/jobs/select-worker', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                job_id: jobId,
-                worker_id: workerId,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-              })
-            });
-
-            if (!verifyRes.ok) throw new Error('Payment verification failed');
-            
-            toast.success(`Worker ${workerName} selected! They are on their way.`);
-            // Page re-renders via Supabase real-time status change
-          } catch (verifyErr: any) {
-            toast.error(verifyErr.message);
-          } finally {
-            setLoading(false);
-          }
-        },
-        modal: {
-          ondismiss: function() {
-            setLoading(false);
-          }
-        }
-      };
-
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-
+      if (error) throw error;
+      toast.success('Worker assigned!');
+      fetchJobData();
     } catch (err: any) {
       toast.error(err.message);
-      console.error(err);
+    } finally {
       setLoading(false);
     }
   }
