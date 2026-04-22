@@ -1,186 +1,365 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sora, DM_Sans } from 'next/font/google';
 import { 
-  Briefcase, 
+  Trophy, 
+  Target, 
+  AlertTriangle, 
+  Clock, 
   MapPin, 
-  Filter, 
-  Bell, 
-  User,
+  Navigation,
+  ChevronRight,
   Loader2,
-  AlertCircle
+  Bell,
+  CheckCircle2,
+  XCircle,
+  Wrench,
+  IndianRupee,
+  Activity,
+  History,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import JobCard from '@/components/JobCard';
-import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
+const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function WorkerDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [workerProfile, setWorkerProfile] = useState<any>(null);
-  const [availableJobs, setAvailableJobs] = useState<any[]>([]);
+  const [worker, setWorker] = useState<any>(null);
+  const [pings, setPings] = useState<any[]>([]);
+  const [activeJob, setActiveJob] = useState<any>(null);
+  const [recentJobs, setRecentJobs] = useState<any[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
-  useEffect(() => {
-    const channelName = `jobs-nearby-${Math.random()}`; // Unique name to prevent collisions
-    const channel = supabase.channel(channelName);
+  const fetchDashboardData = useCallback(async (uid: string) => {
+    try {
+      // 1. Worker Profile & Stats
+      const { data: workerData } = await supabase
+        .from('workers')
+        .select('*, user:users(name)')
+        .eq('user_id', uid)
+        .single();
+      setWorker(workerData);
 
-    async function initDashboard() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+      // 2. Active Job Pings (Pending)
+      const { data: pingsData } = await supabase
+        .from('job_pings')
+        .select('*, job:jobs(*)')
+        .eq('worker_id', uid)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .order('sent_at', { ascending: false });
+      setPings(pingsData || []);
 
-        const { data: profile, error: profileError } = await supabase
-          .from('workers')
-          .select('*, user:users!user_id(name, phone)')
-          .eq('user_id', user.id)
-          .single();
+      // 3. Current Active Job
+      const { data: activeJobData } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('accepted_worker_id', uid)
+        .in('status', ['assigned', 'in_transit', 'on_site'])
+        .maybeSingle();
+      setActiveJob(activeJobData);
 
-        if (profileError) {
-          console.error('Worker Profile Fetch Error:', profileError);
-          throw new Error(profileError.message || 'Profile not found');
-        }
-        setWorkerProfile(profile);
+      // 4. Recent Jobs (Last 10 Completed)
+      const { data: recentData } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('accepted_worker_id', uid)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setRecentJobs(recentData || []);
 
-        const targetPincodes = [profile.pincode, ...(profile.adjacent_pincodes || [])];
-        
-        const { data: jobs, error: jobsError } = await supabase
-          .from('jobs')
-          .select('*')
-          .in('pincode', targetPincodes)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });
-
-        if (jobsError) throw jobsError;
-        setAvailableJobs(jobs);
-
-        // Setup Real-time listener
-        channel
-          .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'jobs'
-          }, (payload) => {
-            const newJob = payload.new;
-            if (targetPincodes.includes(newJob.pincode) && newJob.status === 'pending') {
-              setAvailableJobs(prev => [newJob, ...prev]);
-              toast.info('New job posted nearby!', {
-                description: newJob.interpreted_category,
-              });
-            }
-          })
-          .subscribe();
-
-      } catch (err: any) {
-        console.error('Dashboard Initialization Error:', err);
-        toast.error(err.message || 'Failed to load dashboard');
-      } finally {
-        setLoading(false);
-      }
+    } catch (err: any) {
+      console.error('Worker Dashboard Load Error:', err);
+    } finally {
+      setLoading(false);
     }
-
-    initDashboard();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-black">
-        <Loader2 className="size-8 animate-spin text-primary" />
-        <p className="text-sm text-zinc-500">Scanning for jobs nearby...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        router.push('/login');
+        return;
+      }
+      setUserId(session.user.id);
+      fetchDashboardData(session.user.id);
+
+      // Real-time for Pings
+      const pingChannel = supabase
+        .channel(`worker-pings-${session.user.id}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'job_pings',
+          filter: `worker_id=eq.${session.user.id}`
+        }, () => fetchDashboardData(session.user.id))
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'jobs',
+          filter: `accepted_worker_id=eq.${session.user.id}`
+        }, () => fetchDashboardData(session.user.id))
+        .subscribe();
+
+      return () => { supabase.removeChannel(pingChannel); };
+    }
+    init();
+  }, [router, fetchDashboardData]);
+
+  const handleIgnorePing = async (pingId: string) => {
+    try {
+      const { error } = await supabase
+        .from('job_pings')
+        .update({ status: 'ignored' })
+        .eq('id', pingId);
+      if (error) throw error;
+      setPings(prev => prev.filter(p => p.id !== pingId));
+      toast.success('Alert ignored');
+    } catch (err) {
+      toast.error('Action failed');
+    }
+  };
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-24 dark:bg-black">
-      {/* Top Header */}
-      <header className="sticky top-0 z-20 border-b bg-white/80 px-6 py-5 backdrop-blur-md dark:bg-black/80">
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24", dmSans.className)}>
+      
+      {/* Header with Online Status */}
+      <header className="px-6 pt-10 pb-8 space-y-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-              {workerProfile?.user?.name?.charAt(0) || <User className="size-5" />}
-            </div>
-            <div>
-              <h1 className="text-sm font-bold leading-none">{workerProfile?.user?.name}</h1>
-              <div className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500">
-                <MapPin className="size-3" />
-                {workerProfile?.pincode}
-              </div>
-            </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Welcome Back</p>
+            <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{worker?.user?.name?.split(' ')[0]}</h1>
           </div>
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="size-5" />
-            <span className="absolute right-2 top-2 size-2 rounded-full bg-red-500" />
-          </Button>
+          <button 
+            onClick={() => setIsOnline(!isOnline)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all duration-500",
+              isOnline ? "bg-[#40C057]/10 text-[#40C057] shadow-lg shadow-[#40C057]/10" : "bg-zinc-100 text-zinc-400"
+            )}
+          >
+            <div className={cn("size-2 rounded-full", isOnline ? "bg-[#40C057] animate-pulse" : "bg-zinc-300")} />
+            {isOnline ? 'Online' : 'Offline'}
+          </button>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-1 shadow-sm border border-zinc-100/50">
+            <Target className="size-4 text-emerald-500" />
+            <span className="text-lg font-black text-[#1B4332]">{worker?.completion_rate || 0}%</span>
+            <span className="text-[8px] font-black uppercase text-zinc-400">Success</span>
+          </div>
+          <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-1 shadow-sm border border-zinc-100/50">
+            <Trophy className="size-4 text-amber-500" />
+            <span className="text-lg font-black text-[#1B4332]">{worker?.total_jobs || 0}</span>
+            <span className="text-[8px] font-black uppercase text-zinc-400">Jobs</span>
+          </div>
+          <div className="bg-white rounded-2xl p-4 flex flex-col items-center gap-1 shadow-sm border border-zinc-100/50">
+            <AlertTriangle className={cn("size-4", worker?.strike_count > 0 ? "text-red-500" : "text-zinc-200")} />
+            <span className={cn("text-lg font-black", worker?.strike_count > 0 ? "text-red-500" : "text-[#1B4332]")}>{worker?.strike_count || 0}</span>
+            <span className="text-[8px] font-black uppercase text-zinc-400">Strikes</span>
+          </div>
         </div>
       </header>
 
-      <main className="p-6">
-        {/* Stats Banner */}
-        <div className="mb-8 grid grid-cols-2 gap-4">
-          <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Total Jobs</p>
-            <p className="text-2xl font-black text-zinc-900 dark:text-white">{workerProfile?.total_jobs || 0}</p>
-          </div>
-          <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Success Rate</p>
-            <p className="text-2xl font-black text-emerald-500">{workerProfile?.completion_rate || 0}%</p>
-          </div>
-        </div>
+      <main className="px-6 space-y-10">
+        
+        {/* Active Mission - Highest Priority */}
+        {activeJob && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-[#1B4332]">
+              <Activity className="size-4" />
+              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Active Mission</h2>
+            </div>
+            <Card className="rounded-[32px] border-none bg-[#1B4332] text-white shadow-2xl shadow-[#1B4332]/20 overflow-hidden group">
+              <CardContent className="p-8 space-y-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/40">In Progress</p>
+                    <h4 className="text-2xl font-black leading-tight">{activeJob.interpreted_category}</h4>
+                  </div>
+                  <Badge className="bg-[#40C057] text-[#1B4332] font-black uppercase text-[10px] border-none">
+                    {activeJob.status.replace('_', ' ')}
+                  </Badge>
+                </div>
+                <Button 
+                  onClick={() => router.push(`/worker/job/${activeJob.id}`)}
+                  className="w-full h-14 rounded-2xl bg-white text-[#1B4332] font-black shadow-lg active:scale-95 transition-all"
+                >
+                  Manage Workflow
+                  <ChevronRight className="ml-2 size-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
-        {/* Job Feed */}
+        {/* Live Radar / New Job Pings */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">Available Gigs</h2>
-            <Button variant="ghost" size="sm" className="gap-2 text-zinc-500">
-              <Filter className="size-4" />
-              Filter
-            </Button>
+            <div className="flex items-center gap-2 text-[#1B4332]">
+              <Zap className="size-4 text-[#40C057]" />
+              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Job Radar</h2>
+            </div>
+            {pings.length > 0 && <Badge variant="secondary" className="bg-[#40C057]/10 text-[#40C057] border-none px-2">{pings.length} Live</Badge>}
           </div>
 
-          {availableJobs.length > 0 ? (
-            <div className="grid gap-4">
-              {availableJobs.map((job) => (
-                <JobCard 
-                  key={job.id} 
-                  job={job} 
-                  isAdjacent={job.pincode !== workerProfile.pincode}
-                  onClick={(id) => router.push(`/worker/job/${id}`)}
+          {!isOnline ? (
+            <div className="flex flex-col items-center py-12 text-center bg-zinc-50 rounded-[32px] border-2 border-dashed border-zinc-200">
+              <p className="text-sm font-bold text-zinc-400">You're currently offline.</p>
+              <Button variant="link" onClick={() => setIsOnline(true)} className="text-[#40C057] font-black underline">Go Online to see jobs</Button>
+            </div>
+          ) : pings.length > 0 ? (
+            <div className="space-y-4">
+              {pings.map(ping => (
+                <PingCard 
+                  key={ping.id} 
+                  ping={ping} 
+                  onIgnore={() => handleIgnorePing(ping.id)}
+                  onView={() => router.push(`/worker/job/${ping.job_id}`)}
                 />
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-zinc-200 py-16 dark:border-zinc-800">
-              <Briefcase className="mb-4 size-12 text-zinc-300" />
-              <h3 className="font-bold text-zinc-900 dark:text-white">No jobs found nearby</h3>
-              <p className="mt-1 text-center text-sm text-zinc-500 px-10">
-                We'll notify you as soon as someone posts a job in {workerProfile?.pincode} or nearby areas.
-              </p>
+            <div className="flex flex-col items-center py-16 text-center bg-white rounded-[32px] border-2 border-dashed border-zinc-100">
+              <div className="size-16 rounded-full bg-[#F8F9F0] flex items-center justify-center text-zinc-200 mb-4">
+                <Navigation className="size-8 animate-pulse" />
+              </div>
+              <p className="text-sm font-bold text-zinc-400 px-12 leading-relaxed">Scanning for new jobs in your area...</p>
             </div>
           )}
         </section>
-      </main>
 
-      {/* Verification Warning for New Workers */}
-      {workerProfile?.is_new && (
-        <div className="mx-6 mb-6 rounded-2xl bg-amber-50 p-4 border border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/30">
-          <div className="flex gap-3">
-            <AlertCircle className="size-5 text-amber-600 shrink-0" />
-            <div>
-              <p className="text-xs font-bold text-amber-800 dark:text-amber-400">Verification Pending</p>
-              <p className="text-[10px] text-amber-700/80 dark:text-amber-500/80">
-                You can still bid on jobs, but verified workers are 3x more likely to be hired. Talk to your partner node to verify your Aadhar.
-              </p>
+        {/* History Section */}
+        <section className="space-y-6 pb-12">
+          <div className="flex items-center gap-2 text-[#1B4332]">
+            <History className="size-4" />
+            <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-400")}>Recent History</h2>
+          </div>
+          {recentJobs.length > 0 ? (
+            <div className="space-y-3">
+              {recentJobs.map(job => (
+                <div key={job.id} className="flex items-center justify-between p-5 bg-white rounded-2xl shadow-sm border border-zinc-100/50">
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-[#1B4332]">{job.interpreted_category}</p>
+                    <p className="text-[10px] text-zinc-400 font-bold uppercase">{formatDistanceToNow(new Date(job.created_at))} ago</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-[#40C057]">₹{job.final_price || job.ai_base_price}</p>
+                    <p className="text-[8px] text-zinc-300 font-black uppercase">Earned</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400 italic text-center py-8">Complete your first job to see history!</p>
+          )}
+        </section>
+
+      </main>
+    </div>
+  );
+}
+
+function PingCard({ ping, onIgnore, onView }: { ping: any, onIgnore: () => void, onView: () => void }) {
+  const [timeLeft, setTimeLeft] = useState<string>('');
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const expires = new Date(ping.expires_at);
+      const diff = expires.getTime() - now.getTime();
+      if (diff <= 0) {
+        setTimeLeft('Expired');
+        return;
+      }
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${mins}:${String(secs).padStart(2, '0')}`);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [ping.expires_at]);
+
+  return (
+    <Card className="rounded-[36px] border-none bg-white shadow-xl shadow-[#1B4332]/5 overflow-hidden animate-in slide-in-from-bottom-4">
+      <CardContent className="p-0">
+        <div className="p-8 space-y-6">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <h4 className="text-2xl font-black text-[#1B4332] leading-tight">{ping.job?.interpreted_category}</h4>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="text-[9px] font-black uppercase border-zinc-100 text-zinc-400">
+                  <MapPin className="size-3 mr-1 text-[#40C057]" />
+                  {ping.job?.pincode}
+                </Badge>
+                <Badge variant="outline" className="text-[9px] font-black uppercase border-zinc-100 text-zinc-400">
+                  <IndianRupee className="size-3 mr-1 text-[#40C057]" />
+                  Est. ₹{ping.job?.ai_base_price}
+                </Badge>
+              </div>
+            </div>
+            <div className={cn(
+              "rounded-xl px-3 py-2 text-xs font-black tabular-nums transition-colors",
+              timeLeft === 'Expired' ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600 border border-emerald-100/50"
+            )}>
+              {timeLeft}
             </div>
           </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button 
+              onClick={onIgnore}
+              variant="ghost" 
+              className="flex-1 h-14 rounded-2xl bg-zinc-50 text-zinc-400 font-bold hover:bg-zinc-100"
+            >
+              Skip
+            </Button>
+            <Button 
+              onClick={onView}
+              className="flex-[2] h-14 rounded-2xl bg-[#40C057] text-[#1B4332] font-black shadow-lg shadow-[#40C057]/20"
+            >
+              See Full Job
+            </Button>
+          </div>
         </div>
-      )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex min-h-screen w-full flex-col bg-[#F8F9F0] px-6 py-12 space-y-10">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-10 w-40 rounded-2xl" />
+        <Skeleton className="size-10 rounded-full" />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <Skeleton className="h-24 rounded-2xl" />
+        <Skeleton className="h-24 rounded-2xl" />
+        <Skeleton className="h-24 rounded-2xl" />
+      </div>
+      <Skeleton className="h-40 w-full rounded-[32px]" />
+      <Skeleton className="h-72 w-full rounded-[32px]" />
     </div>
   );
 }
