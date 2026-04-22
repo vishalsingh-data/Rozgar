@@ -59,6 +59,8 @@ export default function JobDetailsPage() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
 
+  const [renegotiation, setRenegotiation] = useState<any>(null);
+
   const fetchJobData = useCallback(async () => {
     try {
       // 1. Fetch Job
@@ -78,7 +80,18 @@ export default function JobDetailsPage() {
       if (jobError) throw jobError;
       setJob(jobData);
 
-      // 2. Fetch Bids
+      // 2. If renegotiating, fetch the record
+      if (jobData.status === 'renegotiating') {
+        const { data: renData } = await supabase
+          .from('renegotiations')
+          .select('*')
+          .eq('job_id', jobId)
+          .eq('customer_decision', 'pending')
+          .maybeSingle();
+        setRenegotiation(renData);
+      }
+
+      // 3. Fetch Bids
       const { data: bidsData } = await supabase
         .from('bids')
         .select(`
@@ -111,30 +124,49 @@ export default function JobDetailsPage() {
   useEffect(() => {
     fetchJobData();
 
-    // Real-time subscription for BIDS
+    // Real-time subscription
     const channel = supabase
-      .channel(`job-bids-${jobId}`)
+      .channel(`job-updates-${jobId}`)
       .on('postgres_changes', { 
-        event: 'INSERT', 
+        event: '*', 
         schema: 'public', 
-        table: 'bids',
-        filter: `job_id=eq.${jobId}`
-      }, () => {
-        fetchJobData(); // Re-fetch on new bid
-        toast.success('New worker bid received!', { icon: '🔔' });
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
         table: 'jobs',
         filter: `id=eq.${jobId}`
-      }, (payload) => {
-        setJob((prev: any) => ({ ...prev, ...payload.new }));
-      })
+      }, () => fetchJobData())
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'bids',
+        filter: `job_id=eq.${jobId}`
+      }, () => fetchJobData())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [jobId, fetchJobData]);
+
+  async function handleDecision(decision: 'accepted' | 'rejected') {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/jobs/renegotiate-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          renegotiation_id: renegotiation.id,
+          customer_id: job.customer_id,
+          decision
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to submit decision');
+      
+      toast.success(decision === 'accepted' ? 'Price increase accepted' : 'Job cancelled');
+      fetchJobData();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Handle Auto-Broadcast
   useEffect(() => {
@@ -201,6 +233,75 @@ export default function JobDetailsPage() {
           </div>
         )}
       </header>
+
+      {/* Renegotiation Banner */}
+      {job.status === 'renegotiating' && renegotiation && (
+        <div className="bg-amber-50 border-b border-amber-200 animate-in slide-in-from-top duration-500">
+          <div className="mx-auto max-w-lg p-6 space-y-6">
+            <div className="flex items-start gap-4">
+              <div className="size-12 rounded-2xl bg-amber-500 flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-500/20">
+                <AlertCircle className="size-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className={cn(sora.className, "text-lg text-amber-900")}>Price Change Requested</h3>
+                <p className="text-xs text-amber-700/70 font-medium">Worker found hidden damage on-site</p>
+              </div>
+            </div>
+
+            <Card className="rounded-[32px] border-none bg-white p-6 shadow-xl shadow-amber-900/5 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-zinc-400">Old Price</span>
+                  <p className="text-xl font-bold text-zinc-400 line-through">₹{renegotiation.old_price}</p>
+                </div>
+                <div className="space-y-1 text-right">
+                  <span className="text-[10px] font-black uppercase text-amber-500">New Price</span>
+                  <p className="text-2xl font-black text-amber-600">₹{renegotiation.new_price}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-zinc-400">Worker's Reason</span>
+                <p className="text-sm font-medium text-zinc-600 leading-relaxed italic">"{renegotiation.reason}"</p>
+              </div>
+
+              {/* AI Verification Result */}
+              <div className={cn(
+                "rounded-2xl p-4 flex gap-3 items-start",
+                renegotiation.ai_verified ? "bg-emerald-50 text-emerald-700" : "bg-zinc-50 text-zinc-500"
+              )}>
+                {renegotiation.ai_verified ? <CheckCircle2 className="size-5 shrink-0" /> : <Info className="size-5 shrink-0" />}
+                <div className="space-y-1">
+                  <p className="text-xs font-black uppercase tracking-widest">AI Audit Result</p>
+                  <p className="text-[10px] leading-relaxed font-medium">{renegotiation.ai_note}</p>
+                </div>
+              </div>
+
+              {renegotiation.new_photo_url && (
+                <div className="relative aspect-video rounded-2xl overflow-hidden border border-zinc-100">
+                  <img src={renegotiation.new_photo_url} alt="Damage evidence" className="size-full object-cover" />
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  onClick={() => handleDecision('rejected')}
+                  variant="outline" 
+                  className="flex-1 h-14 rounded-2xl border-zinc-200 text-zinc-400 font-bold"
+                >
+                  Reject & Cancel
+                </Button>
+                <Button 
+                  onClick={() => handleDecision('accepted')}
+                  className="flex-[1.5] h-14 rounded-2xl bg-amber-500 text-white font-black shadow-lg shadow-amber-500/20"
+                >
+                  Accept ₹{renegotiation.new_price}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
 
       <main className="px-6">
         {/* State: Bidding */}

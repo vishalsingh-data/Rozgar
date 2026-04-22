@@ -1,46 +1,34 @@
 import { NextResponse } from 'next/server';
-import { parseWithGroq } from '@/lib/groq';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const SYSTEM_PROMPT = 'You are a skill parser for an Indian gig marketplace called Rozgar. You MUST return ONLY a valid JSON object. No markdown. No explanation. No code blocks. Just the raw JSON.';
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const { raw_description } = await req.json();
+    const { description } = await req.json();
 
-    if (!raw_description) {
+    if (!description) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 });
     }
 
-    const userPrompt = `Parse this Indian worker description and return JSON with exactly these keys: primary_skill (string, the main job title), skill_tags (array of strings, specific skills mentioned), searchable_as (array of strings, ALL the search terms a customer might use to find this worker — be comprehensive, include synonyms, related terms, and common misspellings), worker_type (exactly one of: skilled, semi_skilled, daily_wage, domestic, driver, other). Description: ${raw_description}`;
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `Given a worker's bio: "${description}", extract 3-5 specific skill tags (e.g., AC Repair, Plumbing, RO Service). 
+    Also, identify the best category (searchable_as) for this worker from these options: [Skilled, Semi-skilled, Daily wage, Domestic, Driver, Other].
+    Return ONLY JSON with keys: tags (array of strings), category (string).`;
 
-    let result;
-    let aiResponse = await parseWithGroq(SYSTEM_PROMPT, userPrompt);
-
-    try {
-      // First attempt to parse
-      result = JSON.parse(aiResponse);
-    } catch (parseErr) {
-      console.warn('First AI parse attempt failed, retrying with stricter prompt...', aiResponse);
-      
-      // Retry once with a stricter prompt
-      const stricterSystemPrompt = SYSTEM_PROMPT + ' CRITICAL: Do not include ANY text other than the JSON object. No triple backticks. No prefix like "Here is the JSON".';
-      aiResponse = await parseWithGroq(stricterSystemPrompt, userPrompt);
-      
-      try {
-        result = JSON.parse(aiResponse);
-      } catch (secondParseErr: any) {
-        console.error('Second AI parse attempt failed:', aiResponse);
-        return NextResponse.json({ 
-          error: 'Failed to parse AI response into valid JSON',
-          raw: aiResponse 
-        }, { status: 500 });
-      }
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    const jsonMatch = text.match(/\{.*\}/s);
+    
+    if (jsonMatch) {
+      return NextResponse.json(JSON.parse(jsonMatch[0]));
     }
-
-    return NextResponse.json(result);
+    
+    return NextResponse.json({ tags: [], category: 'Other' });
 
   } catch (err: any) {
-    console.error('AI Skill Parse Error:', err);
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+    console.error('Skill Parse Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

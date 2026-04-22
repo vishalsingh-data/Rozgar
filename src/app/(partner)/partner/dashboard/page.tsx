@@ -1,196 +1,304 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sora, DM_Sans } from 'next/font/google';
 import { 
   Users, 
   IndianRupee, 
-  TrendingUp, 
+  AlertCircle, 
+  Activity, 
+  ChevronRight, 
   Plus, 
-  ChevronRight,
+  Wallet, 
+  TrendingUp,
+  Briefcase,
   Loader2,
-  ShieldCheck,
-  Search,
-  ExternalLink
+  CheckCircle2,
+  UserPlus,
+  ShieldAlert,
+  ArrowUpRight,
+  Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
+import { format, startOfWeek, startOfMonth } from 'date-fns';
+
+const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
+const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function PartnerDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [partnerNode, setPartnerNode] = useState<any>(null);
+  const [earnings, setEarnings] = useState({ week: 0, month: 0, pending: 0 });
   const [workers, setWorkers] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    totalWorkers: 0,
-    activeJobs: 0,
-    pendingLedger: 0
-  });
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
+  const [disputes, setDisputes] = useState<any[]>([]);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // 1. Fetch Workers registered by this partner
-        const { data: workersData, error: workersError } = await supabase
-          .from('workers')
-          .select('*, users!user_id(name, phone)')
-          .eq('partner_node_id', user.id);
-
-        if (workersError) throw workersError;
-        setWorkers(workersData);
-
-        // 2. Fetch Stats (Simplified for demo)
-        const { data: ledgerData } = await supabase
-          .from('partner_ledger')
-          .select('amount')
-          .eq('partner_node_id', user.id)
-          .eq('status', 'pending');
-
-        const pendingAmount = ledgerData?.reduce((acc, curr) => acc + curr.amount, 0) || 0;
-
-        setStats({
-          totalWorkers: workersData.length,
-          activeJobs: 0, // Would query jobs table in real app
-          pendingLedger: pendingAmount
-        });
-      } catch (err: any) {
-        console.error('Dashboard Fetch Error:', err);
-        // Log more details if it's a Supabase error
-        if (err.message) {
-          console.error('Error Message:', err.message);
-          console.error('Error Code:', err.code);
-          console.error('Error Details:', err.details);
-        }
-        toast.error(err.message || 'Failed to load dashboard');
-      } finally {
-        setLoading(false);
+  const fetchPartnerData = useCallback(async (userId: string) => {
+    try {
+      // 1. Fetch Partner Node
+      const { data: nodeData } = await supabase
+        .from('partner_nodes')
+        .select('*')
+        .eq('owner_id', userId)
+        .single();
+      
+      if (!nodeData) {
+        toast.error('Partner node not found');
+        return;
       }
-    }
+      setPartnerNode(nodeData);
 
-    fetchData();
+      // 2. Fetch Earnings from Ledger
+      const { data: ledgerData } = await supabase
+        .from('partner_ledger')
+        .select('*')
+        .eq('partner_node_id', nodeData.id);
+
+      if (ledgerData) {
+        const now = new Date();
+        const weekStart = startOfWeek(now);
+        const monthStart = startOfMonth(now);
+
+        const weekSum = ledgerData
+          .filter(item => new Date(item.created_at) >= weekStart)
+          .reduce((acc, curr) => acc + curr.amount, 0);
+        
+        const monthSum = ledgerData
+          .filter(item => new Date(item.created_at) >= monthStart)
+          .reduce((acc, curr) => acc + curr.amount, 0);
+
+        const pendingSum = ledgerData
+          .filter(item => item.status === 'pending')
+          .reduce((acc, curr) => acc + curr.amount, 0);
+
+        setEarnings({ week: weekSum, month: monthSum, pending: pendingSum });
+      }
+
+      // 3. Fetch My Workers
+      const { data: workersData } = await supabase
+        .from('workers')
+        .select('*, user:users(name)')
+        .eq('partner_node_id', nodeData.id);
+      
+      setWorkers(workersData || []);
+      const workerIds = (workersData || []).map(w => w.user_id);
+
+      // 4. Fetch Active Jobs for these workers
+      if (workerIds.length > 0) {
+        const { data: jobsData } = await supabase
+          .from('jobs')
+          .select('*')
+          .in('accepted_worker_id', workerIds)
+          .in('status', ['assigned', 'in_transit', 'on_site']);
+        setActiveJobs(jobsData || []);
+
+        // 5. Fetch Disputes
+        const { data: disputesData } = await supabase
+          .from('jobs')
+          .select('*')
+          .in('accepted_worker_id', workerIds)
+          .eq('status', 'disputed');
+        setDisputes(disputesData || []);
+      }
+
+    } catch (err: any) {
+      console.error('Partner Dashboard Error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
-        <Loader2 className="size-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+      fetchPartnerData(session.user.id);
+    }
+    init();
+  }, [router, fetchPartnerData]);
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-20 dark:bg-black">
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32", dmSans.className)}>
+      
       {/* Header */}
-      <header className="border-b bg-white px-6 py-8 dark:bg-zinc-900">
-        <div className="mx-auto max-w-5xl flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Partner Node</h1>
-            <p className="text-sm text-zinc-500 font-medium">Manage your local worker network</p>
+      <header className="px-6 pt-10 pb-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Node Management</p>
+            <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{partnerNode?.name || 'My Node'}</h1>
           </div>
-          <Button className="rounded-full gap-2" onClick={() => router.push('/partner/register-worker')}>
-            <Plus className="size-4" />
-            Add Worker
+          <Button 
+            onClick={() => router.push('/partner/register-worker')}
+            className="size-12 rounded-2xl bg-[#1B4332] text-white shadow-lg active:scale-95 transition-all"
+          >
+            <UserPlus className="size-6" />
           </Button>
         </div>
+
+        {/* Earnings Overview Card */}
+        <Card className="rounded-[40px] border-none bg-[#1B4332] text-white shadow-2xl shadow-[#1B4332]/20 overflow-hidden relative group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Wallet className="size-24 -rotate-12" />
+          </div>
+          <CardContent className="p-8 space-y-8 relative z-10">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/50">Total Earnings (Pending)</p>
+              <h2 className="text-4xl font-black flex items-center">
+                <IndianRupee className="size-7" />
+                {earnings.pending}
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/10 rounded-2xl p-4 space-y-1">
+                <p className="text-[8px] font-black uppercase tracking-widest text-white/40">This Week</p>
+                <p className="text-lg font-bold">₹{earnings.week}</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-4 space-y-1">
+                <p className="text-[8px] font-black uppercase tracking-widest text-white/40">This Month</p>
+                <p className="text-lg font-bold">₹{earnings.month}</p>
+              </div>
+            </div>
+
+            <Button 
+              onClick={() => toast.success('Payout requested — processed every Monday')}
+              className="w-full h-14 rounded-2xl bg-[#40C057] text-[#1B4332] font-black shadow-lg shadow-[#40C057]/20"
+            >
+              Request Payout via UPI
+              <ArrowUpRight className="ml-2 size-4" />
+            </Button>
+          </CardContent>
+        </Card>
       </header>
 
-      <main className="mx-auto max-w-5xl p-6 space-y-8">
+      <main className="px-6 space-y-12">
         
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-          <StatCard 
-            title="Total Workers" 
-            value={stats.totalWorkers} 
-            icon={<Users className="size-5" />} 
-            color="bg-blue-500" 
-          />
-          <StatCard 
-            title="Active Jobs" 
-            value={stats.activeJobs} 
-            icon={<TrendingUp className="size-5" />} 
-            color="bg-emerald-500" 
-          />
-          <StatCard 
-            title="Pending Commissions" 
-            value={`₹${stats.pendingLedger}`} 
-            icon={<IndianRupee className="size-5" />} 
-            color="bg-amber-500" 
-          />
-        </div>
-
-        {/* Workers List */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Your Network</h2>
-            <div className="flex items-center gap-2">
-              <Search className="size-4 text-zinc-400" />
-              <span className="text-xs text-zinc-400 font-medium">Search workers...</span>
+        {/* Disputes Section - High Alert */}
+        {disputes.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-red-500">
+              <ShieldAlert className="size-5" />
+              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Urgent Disputes</h3>
             </div>
+            <div className="space-y-3">
+              {disputes.map(job => (
+                <Card key={job.id} className="rounded-3xl border-2 border-red-50 bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-[#1B4332]">{job.interpreted_category}</p>
+                      <p className="text-[10px] font-bold text-zinc-400 uppercase">Worker: {workers.find(w => w.user_id === job.accepted_worker_id)?.user?.name}</p>
+                    </div>
+                    <Button 
+                      onClick={() => router.push(`/partner/dispute/${job.id}`)}
+                      size="sm" 
+                      className="rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100"
+                    >
+                      Handle
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Active Ops Section */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[#1B4332]">
+              <Activity className="size-5 text-[#40C057]" />
+              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Active Ops</h3>
+            </div>
+            <Badge variant="secondary" className="bg-[#40C057]/10 text-[#40C057] border-none px-3 font-black">{activeJobs.length} Live</Badge>
+          </div>
+          
+          {activeJobs.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4">
+              {activeJobs.map(job => (
+                <div key={job.id} className="bg-white rounded-3xl p-6 shadow-sm border border-zinc-100/50 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-[#1B4332]">{job.interpreted_category}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-[#1B4332] text-white text-[8px] font-black uppercase px-2 py-0.5">{job.status.replace('_', ' ')}</Badge>
+                      <span className="text-[10px] text-zinc-300 font-bold">• {workers.find(w => w.user_id === job.accepted_worker_id)?.user?.name}</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="size-5 text-zinc-200" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 bg-white rounded-[32px] border-2 border-dashed border-zinc-100 flex flex-col items-center text-center px-12">
+              <Briefcase className="size-8 text-zinc-100 mb-2" />
+              <p className="text-xs font-bold text-zinc-300">No jobs currently in progress across your fleet.</p>
+            </div>
+          )}
+        </section>
+
+        {/* My Fleet Section */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[#1B4332]">
+              <Users className="size-5 text-[#40C057]" />
+              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>My Fleet</h3>
+            </div>
+            <Button variant="ghost" size="sm" className="text-zinc-400 font-bold text-xs uppercase tracking-widest">
+              <Filter className="size-3 mr-2" />
+              Filter
+            </Button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {workers.map((worker) => (
-              <Card key={worker.user_id} className="overflow-hidden border-zinc-200 shadow-sm hover:shadow-md transition-all dark:border-zinc-800">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="size-12 rounded-xl bg-zinc-100 flex items-center justify-center font-bold text-zinc-500 dark:bg-zinc-800">
-                        {worker.users?.name?.charAt(0)}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-zinc-900 dark:text-white">{worker.users?.name}</h3>
-                        <p className="text-xs text-zinc-500 font-medium">{worker.users?.phone}</p>
+          <div className="space-y-4">
+            {workers.map(worker => (
+              <Card key={worker.id} className="rounded-[32px] border-none bg-white shadow-sm overflow-hidden group">
+                <CardContent className="p-6 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="size-14 rounded-2xl bg-[#F8F9F0] flex items-center justify-center text-zinc-300 relative">
+                      {worker.photo_url ? (
+                        <img src={worker.photo_url} className="size-full object-cover rounded-2xl" alt="" />
+                      ) : (
+                        <Users className="size-6" />
+                      )}
+                      {worker.is_active ? (
+                        <div className="absolute -top-1 -right-1 size-4 bg-[#40C057] rounded-full border-2 border-white flex items-center justify-center">
+                          <CheckCircle2 className="size-2.5 text-white" />
+                        </div>
+                      ) : (
+                        <div className="absolute -top-1 -right-1 size-4 bg-red-500 rounded-full border-2 border-white" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-[#1B4332]">{worker.user?.name}</p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[8px] font-black uppercase text-zinc-400 border-zinc-100">
+                          {worker.searchable_as}
+                        </Badge>
+                        <span className="text-[10px] font-bold text-[#40C057]">{worker.completion_rate}% Success</span>
                       </div>
                     </div>
-                    {worker.aadhar_verified ? (
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Verified</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-amber-600 border-amber-200">New</Badge>
-                    )}
                   </div>
-                  
-                  <div className="mt-6 flex items-center justify-between border-t pt-4">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] uppercase font-bold text-zinc-400">Category</span>
-                      <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 capitalize">{worker.type.replace('_', ' ')}</span>
-                    </div>
-                    <Button variant="ghost" size="sm" className="gap-1 h-8 text-xs font-bold hover:bg-primary/5 hover:text-primary">
-                      Manage
-                      <ChevronRight className="size-3" />
-                    </Button>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <p className="text-[10px] font-black text-[#1B4332]">{worker.total_jobs} Jobs</p>
+                    {worker.strike_count > 0 && (
+                      <Badge className="bg-red-50 text-red-500 border-none text-[8px] font-black px-2">{worker.strike_count} Strikes</Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             ))}
-
-            {workers.length === 0 && (
-              <div className="col-span-full py-12 text-center rounded-3xl border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                <Users className="mx-auto size-12 text-zinc-300 mb-4" />
-                <p className="text-zinc-500 font-medium">You haven't registered any workers yet.</p>
-                <Button variant="link" className="mt-2 text-primary" onClick={() => router.push('/partner/register-worker')}>
-                  Add your first worker
-                </Button>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Recent Activity */}
-        <section className="rounded-3xl bg-zinc-900 p-8 text-white shadow-xl shadow-zinc-200/50">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold">Recent Ledger Activity</h2>
-            <Button variant="outline" size="sm" className="border-zinc-700 bg-transparent text-white hover:bg-zinc-800">
-              View All
-              <ExternalLink className="ml-2 size-3" />
-            </Button>
-          </div>
-          <div className="space-y-4">
-            <p className="text-sm text-zinc-400 text-center py-4">No recent transactions recorded.</p>
           </div>
         </section>
 
@@ -199,20 +307,19 @@ export default function PartnerDashboard() {
   );
 }
 
-function StatCard({ title, value, icon, color }: { title: string, value: any, icon: React.ReactNode, color: string }) {
+function DashboardSkeleton() {
   return (
-    <Card className="border-none shadow-sm dark:bg-zinc-900">
-      <CardContent className="p-6">
-        <div className="flex items-center gap-4">
-          <div className={`flex size-12 items-center justify-center rounded-2xl ${color} text-white shadow-lg shadow-zinc-200/20`}>
-            {icon}
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">{title}</p>
-            <p className="text-2xl font-black text-zinc-900 dark:text-white">{value}</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex min-h-screen w-full flex-col bg-[#F8F9F0] px-6 py-12 space-y-10">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-10 w-40 rounded-2xl" />
+        <Skeleton className="size-12 rounded-2xl" />
+      </div>
+      <Skeleton className="h-64 w-full rounded-[40px]" />
+      <div className="space-y-4">
+        <Skeleton className="h-6 w-32 rounded-lg" />
+        <Skeleton className="h-24 w-full rounded-3xl" />
+        <Skeleton className="h-24 w-full rounded-3xl" />
+      </div>
+    </div>
   );
 }
