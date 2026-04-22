@@ -26,6 +26,16 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow, isAfter } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
 const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
@@ -249,7 +259,48 @@ function JobDashboardCard({ job, onClick }: { job: Job, onClick: () => void }) {
   );
 }
 
-function WarrantyCard({ job }: { job: Job }) {
+
+function WarrantyCard({ job, onClaimSuccess }: { job: Job, onClaimSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmitClaim = async () => {
+    if (!description) {
+      toast.error('Please describe the issue');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error('Not authenticated');
+
+      const res = await fetch('/api/warranty/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: job.id,
+          customer_id: session.user.id,
+          description
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to file claim');
+      }
+
+      toast.success('Warranty claim filed! We have notified the worker.');
+      setOpen(false);
+      onClaimSuccess();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Card className="rounded-3xl border-2 border-dashed border-[#40C057]/30 bg-white p-6">
       <div className="flex items-start justify-between">
@@ -260,18 +311,53 @@ function WarrantyCard({ job }: { job: Job }) {
             </div>
             <p className="text-sm font-black text-[#1B4332]">{job.interpreted_category}</p>
           </div>
-          <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Worker</p>
-            <p className="text-xs font-bold text-[#1B4332]">{job.worker?.name || 'Verified Pro'}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Expires</p>
-            <p className="text-xs font-bold text-emerald-600">{new Date(job.warranty_expires_at!).toLocaleDateString()}</p>
+          <div className="flex items-center gap-6">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Worker</p>
+              <p className="text-xs font-bold text-[#1B4332]">{job.worker?.name || 'Verified Pro'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Expires</p>
+              <p className="text-xs font-bold text-emerald-600">{new Date(job.warranty_expires_at!).toLocaleDateString()}</p>
+            </div>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="rounded-xl border-zinc-200 text-xs font-bold h-10 px-4">
-          File Claim
-        </Button>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="rounded-xl border-zinc-200 text-xs font-bold h-10 px-4">
+              File Claim
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-[40px] border-none bg-white p-8 max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className={cn(sora.className, "text-2xl text-[#1B4332]")}>Warranty Claim</DialogTitle>
+              <DialogDescription className="text-xs font-medium text-zinc-400 pt-1">
+                Tell us what happened with the repair for <b>{job.interpreted_category}</b>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-zinc-400 ml-2">Describe the issue</label>
+                <Textarea 
+                  placeholder="e.g. The leak has started again in the same pipe..." 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="rounded-2xl border-zinc-100 bg-zinc-50 font-medium min-h-[140px] p-4 text-[#1B4332] resize-none"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                disabled={submitting}
+                onClick={handleSubmitClaim}
+                className="w-full h-16 rounded-2xl bg-[#1B4332] text-white font-black text-lg shadow-xl shadow-[#1B4332]/20"
+              >
+                {submitting ? <Loader2 className="animate-spin" /> : 'Submit Claim'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Card>
   );

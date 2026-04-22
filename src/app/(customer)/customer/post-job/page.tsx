@@ -86,8 +86,11 @@ export default function PostJobPage() {
         if (res.ok) {
           const data = await res.json();
           setEstimate(data);
+        } else {
+          const errData = await res.json();
+          console.error('Background AI failed:', errData.error);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Background AI failed:', err);
       }
     }, 500);
@@ -215,12 +218,16 @@ export default function PostJobPage() {
 
             <div className="mt-12">
               <Button 
-                disabled={description.length < 20 || pincode.length < 6}
+                disabled={description.length < 20 || pincode.length < 6 || isAnalysing}
                 onClick={handleNext}
                 className="h-20 w-full rounded-full bg-[#1B4332] text-xl font-bold text-white shadow-2xl shadow-[#1B4332]/20 transition-all active:scale-95 disabled:opacity-30"
               >
-                Next
-                <ChevronRight className="ml-2 size-6" />
+                {isAnalysing ? <Loader2 className="animate-spin size-6" /> : (
+                  <>
+                    Next
+                    <ChevronRight className="ml-2 size-6" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

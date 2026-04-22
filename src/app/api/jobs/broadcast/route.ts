@@ -33,11 +33,10 @@ export async function POST(req: Request) {
     // Logic: Active, low strikes, nearby, available today, and skill overlap
     const { data: matchedWorkers, error: workerError } = await supabaseAdmin
       .from('workers')
-      .select('*, user:users(name)')
-      .eq('is_active', true)
+      .select('*, user:users!workers_user_id_fkey(name, is_active)')
       .lt('strike_count', 3)
       .in('pincode', targetPincodes)
-      .contains('availability_days', [today.charAt(0).toUpperCase() + today.slice(1)]) // Match 'Mon', 'Tue' etc.
+      .contains('availability_days', [today.charAt(0).toUpperCase() + today.slice(1)])
       .overlaps('searchable_as', job.worker_tags_required || []);
 
     if (workerError) {
@@ -45,13 +44,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: workerError.message }, { status: 500 });
     }
 
-    if (!matchedWorkers || matchedWorkers.length === 0) {
+    // Filter by user.is_active in memory since we can't easily filter on a join in this specific way with PostgREST in one line without complex nested filters
+    const activeMatchedWorkers = (matchedWorkers || []).filter(w => w.user?.is_active);
+
+    if (!activeMatchedWorkers || activeMatchedWorkers.length === 0) {
       return NextResponse.json({ workers_pinged: 0, message: 'No matching workers found nearby' });
     }
 
     // 5. Create Job Pings
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
-    const pings = matchedWorkers.map(worker => ({
+    const pings = activeMatchedWorkers.map(worker => ({
       job_id: job.id,
       worker_id: worker.user_id,
       status: 'pending',
@@ -68,7 +70,7 @@ export async function POST(req: Request) {
     }
 
     // 6. Handle Notifications (Logging for now)
-    matchedWorkers.forEach(worker => {
+    activeMatchedWorkers.forEach(worker => {
       // FCM Push Mock
       if (worker.fcm_token) {
         console.log(`[PUSH] FCM push would fire to: ${worker.user?.name || 'Worker'} (ID: ${worker.user_id})`);
@@ -86,7 +88,7 @@ export async function POST(req: Request) {
       .update({ status: 'bidding' })
       .eq('id', job_id);
 
-    return NextResponse.json({ workers_pinged: matchedWorkers.length });
+    return NextResponse.json({ workers_pinged: activeMatchedWorkers.length });
 
   } catch (err: any) {
     console.error('Job Broadcast API Error:', err);

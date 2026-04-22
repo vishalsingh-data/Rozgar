@@ -62,37 +62,35 @@ export async function POST(req: Request) {
         }
       }
 
-      // 3. Check role for redirect (Check both formats: +91 and clean)
+      // 3. Sync & Route
       const cleanPhone = phone.replace(/^\+91/, '');
       const { data: userData } = await supabaseAdmin
         .from('users')
-        .select('id, role')
+        .select('id, role, name')
         .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
-        .single();
+        .maybeSingle();
 
       if (!userData) {
-        return NextResponse.json({ 
-          redirect: '/onboarding', 
-          role: 'new_user',
-          session: signInData.session 
+        await supabaseAdmin.from('users').insert({
+          id: signInData.user.id,
+          phone: cleanPhone,
+          role: 'customer',
+          is_active: true
         });
+        return NextResponse.json({ redirect: '/onboarding', role: 'customer', session: signInData.session });
       }
 
-      const { role, id: userId } = userData;
-      if (role === 'worker') {
-        const { data: workerData } = await supabaseAdmin.from('workers').select('id').eq('user_id', userId).single();
-        return NextResponse.json({ 
-          redirect: workerData ? '/worker/dashboard' : '/worker/register', 
-          role: 'worker',
-          session: signInData.session
-        });
+      // If name is missing, they MUST go to onboarding
+      if (!userData.name) {
+        return NextResponse.json({ redirect: '/onboarding', role: userData.role, session: signInData.session });
       }
-      
-      return NextResponse.json({ 
-        redirect: role === 'customer' ? '/customer/dashboard' : '/partner/dashboard', 
-        role: role,
-        session: signInData.session
-      });
+
+      let redirect = '/onboarding';
+      if (userData.role === 'customer') redirect = '/customer/dashboard';
+      else if (userData.role === 'worker') redirect = '/worker/dashboard';
+      else if (userData.role === 'partner_node') redirect = '/partner/dashboard';
+
+      return NextResponse.json({ redirect, role: userData.role, session: signInData.session });
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -108,25 +106,38 @@ export async function POST(req: Request) {
     }
 
     const cleanPhone = phone.replace(/^\+91/, '');
-    const { data: userData, error: userError } = await supabase
+    
+    // 2. Mirror into public.users if missing
+    const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id, role')
       .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
-      .single();
+      .maybeSingle();
 
-    if (!userData || userError) {
-      return NextResponse.json({ 
-        redirect: '/onboarding', 
-        role: 'new_user',
-        session: session 
+    if (!existingUser) {
+      await supabaseAdmin.from('users').insert({
+        id: session.user.id,
+        phone: cleanPhone,
+        role: 'customer', // Placeholder role
+        is_active: true
       });
+      return NextResponse.json({ redirect: '/onboarding', role: 'customer', session: session });
     }
 
-    return NextResponse.json({ 
-      redirect: userData.role === 'customer' ? '/customer/dashboard' : '/worker/dashboard', 
-      role: userData.role,
-      session: session
-    });
+    // 3. Determine Redirect
+    // If name is missing, they MUST go to onboarding regardless of role
+    const { data: profile } = await supabaseAdmin.from('users').select('name').eq('id', session.user.id).single();
+    
+    if (!profile?.name) {
+      return NextResponse.json({ redirect: '/onboarding', role: existingUser.role, session: session });
+    }
+
+    let redirect = '/onboarding';
+    if (existingUser.role === 'customer') redirect = '/customer/dashboard';
+    else if (existingUser.role === 'worker') redirect = '/worker/dashboard';
+    else if (existingUser.role === 'partner_node') redirect = '/partner/dashboard';
+
+    return NextResponse.json({ redirect, role: existingUser.role, session: session });
   } catch (error: any) {
     console.error('OTP Verify Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

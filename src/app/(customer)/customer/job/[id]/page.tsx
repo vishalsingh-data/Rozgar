@@ -11,7 +11,7 @@ import {
   Phone, 
   ChevronRight,
   Loader2,
-  Broadcast,
+  Radio,
   CheckCircle2,
   Clock,
   Navigation,
@@ -71,7 +71,7 @@ export default function JobDetailsPage() {
           assigned_worker:users!accepted_worker_id(
             name,
             phone,
-            workers(photo_url, completion_rate)
+            workers!workers_user_id_fkey(photo_url, completion_rate)
           )
         `)
         .eq('id', jobId)
@@ -98,7 +98,7 @@ export default function JobDetailsPage() {
           *,
           worker_profile:users!worker_id(
             name,
-            workers(
+            workers!workers_user_id_fkey(
               searchable_as,
               is_new,
               aadhar_verified,
@@ -181,9 +181,13 @@ export default function JobDetailsPage() {
           });
           if (res.ok) {
             fetchJobData();
+          } else {
+            const errData = await res.json();
+            toast.error('Auto-broadcast failed: ' + errData.error);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('Auto-broadcast failed:', err);
+          toast.error('Connectivity issue. Retrying broadcast...');
         } finally {
           setBroadcasting(false);
         }
@@ -192,7 +196,7 @@ export default function JobDetailsPage() {
     }
   }, [job, jobId, broadcasting, fetchJobData]);
 
-  if (loading) return (
+  if (loading || !job) return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8F9F0]">
       <Loader2 className="size-8 animate-spin text-[#1B4332]" />
     </div>
@@ -214,7 +218,7 @@ export default function JobDetailsPage() {
           <div className="flex flex-col items-center py-12 text-center space-y-6">
             <div className="relative">
               <div className="size-24 rounded-full border-4 border-dashed border-[#1B4332]/20 animate-spin" />
-              <Broadcast className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-10 text-[#1B4332]" />
+              <Radio className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-10 text-[#1B4332]" />
             </div>
             <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>Broadcasting your job...</h1>
             <p className="text-zinc-500 max-w-[280px]">We're notifying verified workers in {job.pincode} right now.</p>
@@ -285,17 +289,19 @@ export default function JobDetailsPage() {
 
               <div className="flex gap-3 pt-2">
                 <Button 
+                  disabled={loading}
                   onClick={() => handleDecision('rejected')}
                   variant="outline" 
                   className="flex-1 h-14 rounded-2xl border-zinc-200 text-zinc-400 font-bold"
                 >
-                  Reject & Cancel
+                  {loading ? <Loader2 className="animate-spin" /> : 'Reject & Cancel'}
                 </Button>
                 <Button 
+                  disabled={loading}
                   onClick={() => handleDecision('accepted')}
                   className="flex-[1.5] h-14 rounded-2xl bg-amber-500 text-white font-black shadow-lg shadow-amber-500/20"
                 >
-                  Accept ₹{renegotiation.new_price}
+                  {loading ? <Loader2 className="animate-spin" /> : `Accept ₹${renegotiation.new_price}`}
                 </Button>
               </div>
             </Card>
@@ -502,10 +508,11 @@ function BidCard({ bid, isExpanded, onToggle, onSelect }: { bid: Bid, isExpanded
             </div>
 
             <Button 
+              disabled={loading}
               onClick={onSelect}
               className="h-16 w-full rounded-2xl bg-[#1B4332] text-lg font-black text-white shadow-2xl shadow-[#1B4332]/20"
             >
-              Select {bid.worker_profile.name.split(' ')[0]}
+              {loading ? <Loader2 className="animate-spin" /> : `Select ${bid.worker_profile.name.split(' ')[0]}`}
             </Button>
           </div>
         )}

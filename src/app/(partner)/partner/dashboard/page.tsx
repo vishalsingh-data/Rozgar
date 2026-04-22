@@ -85,7 +85,7 @@ export default function PartnerDashboard() {
       // 3. Fetch My Workers
       const { data: workersData } = await supabase
         .from('workers')
-        .select('*, user:users(name)')
+        .select('*, user:users!workers_user_id_fkey(name, is_active)')
         .eq('partner_node_id', nodeData.id);
       
       setWorkers(workersData || []);
@@ -272,7 +272,7 @@ export default function PartnerDashboard() {
                       ) : (
                         <Users className="size-6" />
                       )}
-                      {worker.is_active ? (
+                      {worker.user?.is_active ? (
                         <div className="absolute -top-1 -right-1 size-4 bg-[#40C057] rounded-full border-2 border-white flex items-center justify-center">
                           <CheckCircle2 className="size-2.5 text-white" />
                         </div>

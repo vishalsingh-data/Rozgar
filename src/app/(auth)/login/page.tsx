@@ -115,12 +115,12 @@ export default function LoginPage() {
 
       toast.success('Login successful!');
       
-      // Redirect based on role
-      if (data.role === 'new_user') router.push('/onboarding');
-      else if (data.role === 'customer') router.push('/customer/dashboard');
-      else if (data.role === 'worker') router.push('/worker/dashboard');
-      else if (data.role === 'partner_node') router.push('/partner/dashboard');
-      else router.push('/');
+      // Use the API-provided redirect path
+      if (data.redirect) {
+        router.push(data.redirect);
+      } else {
+        router.push('/');
+      }
       
       router.refresh();
     } catch (err: any) {
