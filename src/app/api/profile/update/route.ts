@@ -40,6 +40,7 @@ export async function POST(req: Request) {
         .from('workers')
         .upsert({
           user_id: userId,
+          type: 'skilled',          // NOT NULL — required on insert
           raw_description: bio,
           pincode,
           searchable_as: selectedSkills || [],
