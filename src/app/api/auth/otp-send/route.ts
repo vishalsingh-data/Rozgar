@@ -15,16 +15,6 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // UNIVERSAL DEVELOPMENT BYPASS
-    // Always return success for any number in development mode.
-    // This allows testing without an active SMS provider.
-    // ─────────────────────────────────────────────────────────────────────────
-    if (process.env.NODE_ENV === 'development') {
-      return NextResponse.json({ success: true, mode: 'dev_bypass' });
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signInWithOtp({ phone });
 

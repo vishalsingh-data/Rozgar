@@ -54,6 +54,7 @@ export default function WorkerDashboard() {
   const [activeJob, setActiveJob] = useState<any>(null);
   const [recentJobs, setRecentJobs] = useState<any[]>([]);
   const [strikes, setStrikes] = useState<any[]>([]);
+  const [myBookings, setMyBookings] = useState<any[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(true);
 
@@ -108,6 +109,15 @@ export default function WorkerDashboard() {
         .order('created_at', { ascending: false })
         .limit(5);
       setStrikes(strikesData || []);
+
+      // 6. Fetch jobs this worker posted as a customer
+      const { data: bookingsData } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('customer_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setMyBookings(bookingsData || []);
 
     } catch (err: any) {
       console.error('Worker Dashboard Load Error:', err);
@@ -226,7 +236,27 @@ export default function WorkerDashboard() {
       </header>
 
       <main className="px-6 space-y-10">
-        
+
+        {/* Book a Service CTA */}
+        <section>
+          <button
+            onClick={() => router.push('/customer/post-job')}
+            className="w-full text-left group"
+          >
+            <div className="flex items-center gap-5 bg-white rounded-[32px] p-6 shadow-sm border-2 border-zinc-100 group-hover:border-[#40C057]/30 group-hover:shadow-lg active:scale-[0.98] transition-all">
+              <div className="size-14 rounded-2xl bg-[#40C057]/10 flex items-center justify-center shrink-0 group-hover:bg-[#40C057]/20 transition-colors">
+                <Wrench className="size-7 text-[#40C057]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Need something fixed?</p>
+                <h3 className={cn(sora.className, "text-lg text-[#1B4332] leading-tight mt-0.5")}>Book a Service</h3>
+                <p className="text-xs text-zinc-400 font-medium mt-1">Post a job and hire a verified pro for your home</p>
+              </div>
+              <ChevronRight className="size-5 text-zinc-200 group-hover:text-[#40C057] group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </button>
+        </section>
+
         {/* Active Mission */}
         {activeJob && (
           <section className="space-y-4">
@@ -304,6 +334,40 @@ export default function WorkerDashboard() {
                   strike={strike} 
                   onAppealSuccess={() => userId && fetchDashboardData(userId)} 
                 />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* My Bookings Section */}
+        {myBookings.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 text-[#1B4332]">
+              <Wrench className="size-4 text-zinc-300" />
+              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-400")}>My Bookings</h2>
+              <span className="ml-auto text-[10px] font-black uppercase text-zinc-300">{myBookings.length} job{myBookings.length > 1 ? 's' : ''}</span>
+            </div>
+            <div className="space-y-3">
+              {myBookings.map(job => (
+                <div
+                  key={job.id}
+                  onClick={() => router.push(`/customer/job/${job.id}`)}
+                  className="flex items-center justify-between p-5 bg-white rounded-2xl shadow-sm border border-zinc-100/50 cursor-pointer active:scale-[0.98] transition-all hover:border-zinc-200"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-[#1B4332]">{job.interpreted_category || 'Pending...'}</p>
+                    <p className="text-[10px] text-zinc-400 font-bold uppercase">{formatDistanceToNow(new Date(job.created_at))} ago</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-[10px] font-black uppercase px-2.5 py-1 rounded-full",
+                      job.status === 'complete' ? 'bg-emerald-50 text-emerald-600' :
+                      job.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                      'bg-blue-50 text-blue-600'
+                    )}>{job.status.replace('_', ' ')}</span>
+                    <ChevronRight className="size-4 text-zinc-200" />
+                  </div>
+                </div>
               ))}
             </div>
           </section>

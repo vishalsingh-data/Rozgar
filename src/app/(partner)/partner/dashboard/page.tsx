@@ -123,6 +123,19 @@ export default function PartnerDashboard() {
         router.push('/login');
         return;
       }
+
+      // Guard: if partner is not yet approved by Rozgar, show pending page
+      const { data: profile } = await supabase
+        .from('users')
+        .select('is_active')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile && !profile.is_active) {
+        router.replace('/partner/pending');
+        return;
+      }
+
       fetchPartnerData(session.user.id);
     }
     init();
