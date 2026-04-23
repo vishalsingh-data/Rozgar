@@ -540,7 +540,7 @@ function BidCard({ bid, loading, isExpanded, onToggle, onSelect }: { bid: Bid, l
 function TrackingView({ job }: { job: any }) {
   const router = useRouter();
   const worker = job.assigned_worker;
-  const workerProfile = worker.workers[0];
+  const workerProfile = worker?.workers?.[0] ?? { photo_url: null, completion_rate: 100 };
 
   const steps = [
     { label: 'Assigned', active: true },
