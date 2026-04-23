@@ -77,50 +77,29 @@ export default function ProfilePage() {
       const meta = session.user.user_metadata;
       if (meta?.avatar_url) setAvatarUrl(meta.avatar_url);
 
-      // Core profile
-      const { data: profile } = await supabase
-        .from('users')
-        .select('name, role, language_pref, phone')
-        .eq('id', uid)
-        .single();
+      // Fetch all profile data via API (bypasses RLS on workers/partner_nodes)
+      const res = await fetch(`/api/profile/get?userId=${uid}`);
+      if (!res.ok) { router.push('/login'); return; }
+      const { profile, workerData, partnerData } = await res.json();
 
-      if (!profile) { router.push('/login'); return; }
       setRole(profile.role || '');
       setName(profile.name || '');
       setLanguage(profile.language_pref || 'english');
       if (profile.phone) setPhone(profile.phone);
 
-      // Role-specific data
-      if (profile.role === 'worker') {
-        const { data: w } = await supabase
-          .from('workers')
-          .select('raw_description, pincode, landmark, searchable_as, photo_url')
-          .eq('user_id', uid)
-          .maybeSingle();
-        if (w) {
-          setBio(w.raw_description || '');
-          setPincode(w.pincode || '');
-          // searchable_as is text[] in DB — use directly
-          setSelectedSkills(Array.isArray(w.searchable_as) ? w.searchable_as : []);
-          if (w.photo_url && !meta?.avatar_url) setAvatarUrl(w.photo_url);
-        }
+      if (profile.role === 'worker' && workerData) {
+        setBio(workerData.raw_description || '');
+        setPincode(workerData.pincode || '');
+        setSelectedSkills(Array.isArray(workerData.searchable_as) ? workerData.searchable_as : []);
+        if (workerData.photo_url && !meta?.avatar_url) setAvatarUrl(workerData.photo_url);
       } else if (profile.role === 'customer') {
-        // Try fetching pincode from a past job or user metadata
-        const metaPincode = meta?.pincode;
-        if (metaPincode) setPincode(metaPincode);
-      } else if (profile.role === 'partner_node') {
-        const { data: node } = await supabase
-          .from('partner_nodes')
-          .select('name, address, pincode, landmark, contact_phone')
-          .eq('owner_id', uid)
-          .maybeSingle();
-        if (node) {
-          setNodeName(node.name || '');
-          setAddress(node.address || '');
-          setPincode(node.pincode || '');
-          setLandmark(node.landmark || '');
-          setContactPhone(node.contact_phone || '');
-        }
+        if (meta?.pincode) setPincode(meta.pincode);
+      } else if (profile.role === 'partner_node' && partnerData) {
+        setNodeName(partnerData.name || '');
+        setAddress(partnerData.address || '');
+        setPincode(partnerData.pincode || '');
+        setLandmark(partnerData.landmark || '');
+        setContactPhone(partnerData.contact_phone || '');
       }
 
       setLoading(false);
