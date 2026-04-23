@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { getAdjacentPincodes } from '@/lib/pincodes';
+import { skillsMatch } from '@/lib/skill-synonyms';
 
 export async function POST(req: Request) {
   try {
@@ -29,44 +30,38 @@ export async function POST(req: Request) {
     // 3. Build target pincodes list
     const targetPincodes = [job.pincode, ...getAdjacentPincodes(job.pincode)];
 
-    // 4. Query matched workers
-    // Logic: Active (< 3 strikes), nearby pincode, skill overlap
-    // availability_days filter is done in-memory to handle NULL gracefully
-    const requiredTags: string[] = job.worker_tags_required || [];
-
-    let workerQuery = supabaseAdmin
+    // 4. Fetch all nearby workers with low strikes — skill matching done in-memory
+    // (DB-level overlaps() is exact & case-sensitive; AI tags never perfectly match chip labels)
+    const { data: nearbyWorkers, error: workerError } = await supabaseAdmin
       .from('workers')
       .select('*, user:users!workers_user_id_fkey(name, is_active)')
       .lt('strike_count', 3)
       .in('pincode', targetPincodes);
-
-    // Only apply skill overlap filter when AI actually returned tags
-    // (overlaps with [] is always false in PostgreSQL — would exclude everyone)
-    if (requiredTags.length > 0) {
-      workerQuery = workerQuery.overlaps('searchable_as', requiredTags);
-    }
-
-    const { data: matchedWorkers, error: workerError } = await workerQuery;
 
     if (workerError) {
       console.error('Worker Matching Error:', workerError);
       return NextResponse.json({ error: workerError.message }, { status: 500 });
     }
 
-    // Filter by:
-    // 1. user.is_active must be true
-    // 2. availability_days must include today OR be null/empty (treat null as all-days)
-    const activeMatchedWorkers = (matchedWorkers || []).filter(w => {
+    const requiredTags: string[] = job.worker_tags_required || [];
+
+    const activeMatchedWorkers = (nearbyWorkers || []).filter(w => {
       if (!w.user?.is_active) return false;
       const days: string[] = w.availability_days || [];
-      // NULL or empty availability_days → available all days
-      if (days.length === 0) return true;
-      return days.some(d => d.toLowerCase() === today.toLowerCase().slice(0, 3));
+      if (days.length > 0) {
+        const todayStr = today.slice(0, 3);
+        if (!days.some(d => d.toLowerCase() === todayStr)) return false;
+      }
+      return skillsMatch(w.searchable_as || [], requiredTags);
     });
 
-    console.log(`[Broadcast] Job ${job_id}: ${matchedWorkers?.length ?? 0} skill-matched, ${activeMatchedWorkers.length} active+available`);
+    console.log(
+      `[Broadcast] Job ${job_id} (${job.interpreted_category}): ` +
+      `${nearbyWorkers?.length ?? 0} nearby, ${activeMatchedWorkers.length} matched after skill+availability filter. ` +
+      `Required tags: [${requiredTags.join(', ')}]`
+    );
 
-    if (!activeMatchedWorkers || activeMatchedWorkers.length === 0) {
+    if (activeMatchedWorkers.length === 0) {
       return NextResponse.json({ workers_pinged: 0, message: 'No matching workers found nearby' });
     }
 
