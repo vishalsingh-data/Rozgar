@@ -66,11 +66,10 @@ export async function POST(req: Request) {
         .from('workers')
         .upsert({
           user_id: userId,
-          type: workerType || 'skilled',
-          searchable_as: (skills || []).join(', '),
+          type: 'skilled',          // always 'skilled' — no type selector in UI
+          searchable_as: skills || [],
           raw_description: bio,
           pincode,
-          landmark,
           is_new: true,
           total_jobs: 0,
           completion_rate: 100,

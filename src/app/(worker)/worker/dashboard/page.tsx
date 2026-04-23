@@ -139,8 +139,13 @@ export default function WorkerDashboard() {
       // Initialize FCM Notifications
       initializeMessaging(session.user.id);
 
+      // Remove any stale channel from React StrictMode's double-invoke
+      const channelName = `worker-dashboard-${session.user.id}`;
+      const stale = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+      if (stale) await supabase.removeChannel(stale);
+
       const channel = supabase
-        .channel(`worker-dashboard-${session.user.id}`)
+        .channel(channelName)
         .on('postgres_changes', { 
           event: '*', 
           schema: 'public', 

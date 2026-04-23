@@ -100,8 +100,8 @@ export default function ProfilePage() {
         if (w) {
           setBio(w.raw_description || '');
           setPincode(w.pincode || '');
-          const skills = (w.searchable_as || '').split(', ').filter(Boolean);
-          setSelectedSkills(skills);
+          // searchable_as is text[] in DB — use directly
+          setSelectedSkills(Array.isArray(w.searchable_as) ? w.searchable_as : []);
           if (w.photo_url && !meta?.avatar_url) setAvatarUrl(w.photo_url);
         }
       } else if (profile.role === 'customer') {
@@ -181,7 +181,7 @@ export default function ProfilePage() {
           .update({
             raw_description: bio,
             pincode,
-            searchable_as: selectedSkills.join(', '),
+            searchable_as: selectedSkills,
           })
           .eq('user_id', userId);
         if (wErr) throw wErr;

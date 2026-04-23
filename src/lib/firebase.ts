@@ -15,43 +15,57 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const initializeMessaging = async (workerId: string) => {
   if (typeof window === 'undefined') return;
+  if (!('Notification' in window)) return; // unsupported browser
 
   try {
     const messaging = getMessaging(app);
 
-    // 1. Request Permission
-    const permission = await Notification.requestPermission();
+    // 1. Request Permission (non-blocking — don't fail dashboard if denied)
+    let permission: NotificationPermission;
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      permission = Notification.permission;
+    }
     if (permission !== 'granted') {
-      console.warn('Notification permission not granted');
+      console.warn('[FCM] Notification permission not granted — push disabled');
       return;
     }
 
-    // 2. Get Token
-    const token = await getToken(messaging, {
-      vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-    });
-
-    if (token) {
-      console.log('FCM Token generated:', token);
-      
-      // 3. Save Token to Backend
-      await fetch('/api/workers/save-fcm-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ worker_id: workerId, fcm_token: token }),
-      });
-    } else {
-      console.warn('No registration token available. Request permission to generate one.');
+    // 2. Get Token — can fail if FCM push service is unreachable (network / firewall)
+    let token: string | null = null;
+    try {
+      token = await Promise.race<string | null>([
+        getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)), // 8 s timeout
+      ]);
+    } catch (tokenErr: any) {
+      // AbortError = push service unreachable (network / dev environment)
+      // Just warn — this is not fatal
+      console.warn('[FCM] Push subscription failed (non-fatal):', tokenErr?.message ?? tokenErr);
+      return;
     }
+
+    if (!token) {
+      console.warn('[FCM] No registration token — push service may be unreachable');
+      return;
+    }
+
+    // 3. Save Token to Backend
+    await fetch('/api/workers/save-fcm-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worker_id: workerId, fcm_token: token }),
+    });
 
     // 4. Handle Foreground Messages
     onMessage(messaging, (payload) => {
-      console.log('Foreground Message received:', payload);
-      // We can use Sonner or browser notification here
+      console.log('[FCM] Foreground message:', payload);
     });
 
-  } catch (error) {
-    console.error('Error initializing Firebase Messaging:', error);
+  } catch (error: any) {
+    // Catch-all — never crash the dashboard for a notification failure
+    console.warn('[FCM] Messaging init skipped:', error?.message ?? error);
   }
 };
 
