@@ -273,7 +273,7 @@ export default function RegisterWorkerPage() {
                 <ImageUpload 
                   bucket="rozgar-uploads" 
                   path={`aadhar/${formData.phone}_front`} 
-                  onUploadComplete={(url) => setFormData({ ...formData, aadhar_front_url: url })}
+                  onUpload={(url) => setFormData({ ...formData, aadhar_front_url: url })}
                 />
               </div>
               <div className="space-y-2">
@@ -281,7 +281,7 @@ export default function RegisterWorkerPage() {
                 <ImageUpload 
                   bucket="rozgar-uploads" 
                   path={`aadhar/${formData.phone}_back`} 
-                  onUploadComplete={(url) => setFormData({ ...formData, aadhar_back_url: url })}
+                  onUpload={(url) => setFormData({ ...formData, aadhar_back_url: url })}
                 />
               </div>
             </div>

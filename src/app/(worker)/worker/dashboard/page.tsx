@@ -494,7 +494,7 @@ function StrikeCard({ strike, onAppealSuccess }: { strike: any, onAppealSuccess:
                 <ImageUpload 
                   bucket="rozgar-uploads" 
                   path={`appeals/${strike.id}`} 
-                  onUploadComplete={setEvidenceUrl}
+                  onUpload={setEvidenceUrl}
                 />
               </div>
             </div>

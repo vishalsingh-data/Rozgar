@@ -91,6 +91,8 @@ export default function WorkerJobDetailsPage() {
   }, [jobId]);
 
   useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
@@ -100,8 +102,13 @@ export default function WorkerJobDetailsPage() {
       setWorkerId(session.user.id);
       fetchJobDetails(session.user.id);
 
-      const channel = supabase
-        .channel(`worker-job-${jobId}`)
+      // Remove any stale channel from a previous StrictMode mount before subscribing
+      const channelName = `worker-job-${jobId}`;
+      const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+      if (existing) await supabase.removeChannel(existing);
+
+      channel = supabase
+        .channel(channelName)
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
@@ -112,10 +119,13 @@ export default function WorkerJobDetailsPage() {
           toast.success(`Job status updated!`, { icon: '🔄' });
         })
         .subscribe();
-
-      return () => { supabase.removeChannel(channel); };
     }
+
     init();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [jobId, router, fetchJobDetails]);
 
   const handleSubmitBid = async () => {
@@ -384,7 +394,7 @@ export default function WorkerJobDetailsPage() {
                             <ImageUpload 
                               bucket="rozgar-uploads" 
                               path={`renegotiation-photos/${jobId}`}
-                              onUploadComplete={setNewPhotoUrl}
+                              onUpload={setNewPhotoUrl}
                             />
                           </div>
                         </div>

@@ -347,7 +347,7 @@ export default function WorkerRegisterPage() {
                 <ImageUpload 
                   bucket="rozgar-uploads"
                   path={`worker-photos/${userId}`}
-                  onUploadComplete={(url) => setFormData({...formData, photo_url: url})}
+                  onUpload={(url) => setFormData({...formData, photo_url: url})}
                 />
               )}
             </div>

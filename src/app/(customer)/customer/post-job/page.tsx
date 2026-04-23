@@ -310,7 +310,7 @@ export default function PostJobPage() {
                   <ImageUpload 
                     bucket="rozgar-uploads"
                     path={`job-photos/${customerId}`}
-                    onUploadComplete={(url) => setPhotoUrl(url)}
+                    onUpload={(url) => setPhotoUrl(url)}
                   />
                 </div>
               </div>
