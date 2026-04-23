@@ -326,7 +326,8 @@ export default function JobDetailsPage() {
                 {bids.map(bid => (
                   <BidCard 
                     key={bid.id} 
-                    bid={bid} 
+                    bid={bid}
+                    loading={loading}
                     isExpanded={expandedBid === bid.id}
                     onToggle={() => setExpandedBid(expandedBid === bid.id ? null : bid.id)}
                     onSelect={() => handleSelectWorker(bid.worker_id, bid.worker_profile.name)}
@@ -443,7 +444,7 @@ export default function JobDetailsPage() {
   }
 }
 
-function BidCard({ bid, isExpanded, onToggle, onSelect }: { bid: Bid, isExpanded: boolean, onToggle: () => void, onSelect: () => void }) {
+function BidCard({ bid, loading, isExpanded, onToggle, onSelect }: { bid: Bid, loading: boolean, isExpanded: boolean, onToggle: () => void, onSelect: () => void }) {
   const profile = bid.worker_profile?.workers?.[0] ?? {
     photo_url: null,
     is_new: true,
