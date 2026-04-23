@@ -444,7 +444,15 @@ export default function JobDetailsPage() {
 }
 
 function BidCard({ bid, isExpanded, onToggle, onSelect }: { bid: Bid, isExpanded: boolean, onToggle: () => void, onSelect: () => void }) {
-  const profile = bid.worker_profile.workers[0];
+  const profile = bid.worker_profile?.workers?.[0] ?? {
+    photo_url: null,
+    is_new: true,
+    aadhar_verified: false,
+    total_jobs: 0,
+    completion_rate: 100,
+    searchable_as: [],
+    pincode: '',
+  };
   
   return (
     <Card className="rounded-[32px] border-none bg-white shadow-xl shadow-[#1B4332]/5 overflow-hidden transition-all duration-300">
