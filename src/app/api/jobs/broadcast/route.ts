@@ -30,22 +30,41 @@ export async function POST(req: Request) {
     const targetPincodes = [job.pincode, ...getAdjacentPincodes(job.pincode)];
 
     // 4. Query matched workers
-    // Logic: Active, low strikes, nearby, available today, and skill overlap
-    const { data: matchedWorkers, error: workerError } = await supabaseAdmin
+    // Logic: Active (< 3 strikes), nearby pincode, skill overlap
+    // availability_days filter is done in-memory to handle NULL gracefully
+    const requiredTags: string[] = job.worker_tags_required || [];
+
+    let workerQuery = supabaseAdmin
       .from('workers')
       .select('*, user:users!workers_user_id_fkey(name, is_active)')
       .lt('strike_count', 3)
-      .in('pincode', targetPincodes)
-      .contains('availability_days', [today.charAt(0).toUpperCase() + today.slice(1)])
-      .overlaps('searchable_as', job.worker_tags_required || []);
+      .in('pincode', targetPincodes);
+
+    // Only apply skill overlap filter when AI actually returned tags
+    // (overlaps with [] is always false in PostgreSQL — would exclude everyone)
+    if (requiredTags.length > 0) {
+      workerQuery = workerQuery.overlaps('searchable_as', requiredTags);
+    }
+
+    const { data: matchedWorkers, error: workerError } = await workerQuery;
 
     if (workerError) {
       console.error('Worker Matching Error:', workerError);
       return NextResponse.json({ error: workerError.message }, { status: 500 });
     }
 
-    // Filter by user.is_active in memory since we can't easily filter on a join in this specific way with PostgREST in one line without complex nested filters
-    const activeMatchedWorkers = (matchedWorkers || []).filter(w => w.user?.is_active);
+    // Filter by:
+    // 1. user.is_active must be true
+    // 2. availability_days must include today OR be null/empty (treat null as all-days)
+    const activeMatchedWorkers = (matchedWorkers || []).filter(w => {
+      if (!w.user?.is_active) return false;
+      const days: string[] = w.availability_days || [];
+      // NULL or empty availability_days → available all days
+      if (days.length === 0) return true;
+      return days.some(d => d.toLowerCase() === today.toLowerCase().slice(0, 3));
+    });
+
+    console.log(`[Broadcast] Job ${job_id}: ${matchedWorkers?.length ?? 0} skill-matched, ${activeMatchedWorkers.length} active+available`);
 
     if (!activeMatchedWorkers || activeMatchedWorkers.length === 0) {
       return NextResponse.json({ workers_pinged: 0, message: 'No matching workers found nearby' });

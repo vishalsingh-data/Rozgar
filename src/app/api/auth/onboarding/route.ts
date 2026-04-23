@@ -73,6 +73,9 @@ export async function POST(req: Request) {
           is_new: true,
           total_jobs: 0,
           completion_rate: 100,
+          strike_count: 0,
+          // Available all days by default — worker can restrict later from profile
+          availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         });
 
       if (workerError) {

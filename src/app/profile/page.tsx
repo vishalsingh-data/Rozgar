@@ -167,32 +167,30 @@ export default function ProfilePage() {
     if (!name.trim()) { toast.error('Name cannot be empty'); return; }
     setSaving(true);
     try {
-      // 1. Update users table
-      const { error: userErr } = await supabase
-        .from('users')
-        .update({ name: name.trim(), language_pref: language })
-        .eq('id', userId);
-      if (userErr) throw userErr;
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          role,
+          name,
+          language,
+          bio,
+          pincode,
+          selectedSkills,
+          nodeName,
+          address,
+          contactPhone,
+          landmark,
+        }),
+      });
 
-      // 2. Role-specific updates
-      if (role === 'worker') {
-        const { error: wErr } = await supabase
-          .from('workers')
-          .update({
-            raw_description: bio,
-            pincode,
-            searchable_as: selectedSkills,
-          })
-          .eq('user_id', userId);
-        if (wErr) throw wErr;
-      } else if (role === 'customer') {
-        // Save pincode to auth metadata
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+
+      // Customers: also persist pincode in auth metadata
+      if (role === 'customer') {
         await supabase.auth.updateUser({ data: { pincode } });
-      } else if (role === 'partner_node') {
-        await supabase
-          .from('partner_nodes')
-          .update({ name: nodeName, address, pincode, landmark, contact_phone: contactPhone })
-          .eq('owner_id', userId);
       }
 
       toast.success('Profile saved!');
