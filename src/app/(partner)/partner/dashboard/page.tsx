@@ -153,12 +153,24 @@ export default function PartnerDashboard() {
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Node Management</p>
             <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{partnerNode?.name || 'My Node'}</h1>
           </div>
-          <Button 
-            onClick={() => router.push('/partner/register-worker')}
-            className="size-12 rounded-2xl bg-[#1B4332] text-white shadow-lg active:scale-95 transition-all"
-          >
-            <UserPlus className="size-6" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button 
+              onClick={() => router.push('/profile')}
+              variant="ghost"
+              className="size-12 rounded-2xl bg-white border-2 border-zinc-100 shadow-sm hover:border-[#1B4332]/20 active:scale-95 transition-all"
+              title="Edit Profile"
+            >
+              <span className={cn(sora.className, "text-base font-black text-[#1B4332]")}>
+                {(partnerNode?.name || 'P').charAt(0)}
+              </span>
+            </Button>
+            <Button 
+              onClick={() => router.push('/partner/register-worker')}
+              className="size-12 rounded-2xl bg-[#1B4332] text-white shadow-lg active:scale-95 transition-all"
+            >
+              <UserPlus className="size-6" />
+            </Button>
+          </div>
         </div>
 
         {/* Earnings Overview Card */}

@@ -61,6 +61,9 @@ export default function OnboardingPage() {
   // Worker fields
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [bio, setBio] = useState('');
+  const [customSkill, setCustomSkill] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const customSkillInputRef = React.useRef<HTMLInputElement>(null);
   const [landmark, setLandmark] = useState('');
 
   // Partner fields
@@ -88,6 +91,16 @@ export default function OnboardingPage() {
     setSelectedSkills(prev =>
       prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
     );
+  };
+
+  const addCustomSkill = () => {
+    const trimmed = customSkill.trim();
+    if (!trimmed) return;
+    if (!selectedSkills.includes(trimmed)) {
+      setSelectedSkills(prev => [...prev, trimmed]);
+    }
+    setCustomSkill('');
+    setShowCustomInput(false);
   };
 
   const handleRoleSelect = (selected: Role) => {
@@ -277,7 +290,6 @@ export default function OnboardingPage() {
             ════════════════════════════════════════════════════════════ */}
             {role === 'worker' && (
               <>
-                {/* Skills multi-select */}
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1">
                     Your Skills <span className="text-zinc-300">(select all that apply)</span>
@@ -301,7 +313,66 @@ export default function OnboardingPage() {
                         {skill}
                       </button>
                     ))}
+
+                    {/* Custom skills added by user */}
+                    {selectedSkills
+                      .filter(s => !SKILLS.includes(s))
+                      .map(skill => (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => toggleSkill(skill)}
+                          className="px-3 py-2 rounded-xl text-xs font-bold border-2 bg-[#1B4332] text-white border-[#1B4332] shadow-md transition-all"
+                        >
+                          <CheckCircle2 className="inline size-3 mr-1 -mt-0.5" />
+                          {skill}
+                        </button>
+                      ))}
+
+                    {/* Other button */}
+                    {!showCustomInput && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomInput(true);
+                          setTimeout(() => customSkillInputRef.current?.focus(), 50);
+                        }}
+                        className="px-3 py-2 rounded-xl text-xs font-bold border-2 border-dashed border-zinc-200 bg-white text-zinc-400 hover:border-[#40C057] hover:text-[#40C057] transition-all"
+                      >
+                        + Other
+                      </button>
+                    )}
                   </div>
+
+                  {/* Custom skill input */}
+                  {showCustomInput && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        ref={customSkillInputRef}
+                        type="text"
+                        placeholder="e.g. Tile Fixing"
+                        value={customSkill}
+                        onChange={e => setCustomSkill(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomSkill(); } if (e.key === 'Escape') { setShowCustomInput(false); setCustomSkill(''); } }}
+                        className="flex-1 h-10 px-4 rounded-xl border-2 border-[#40C057]/50 bg-white text-sm font-bold text-zinc-700 focus:outline-none focus:border-[#40C057]"
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomSkill}
+                        className="h-10 px-4 rounded-xl bg-[#40C057] text-white text-sm font-black hover:bg-[#2f9e44] active:scale-95 transition-all"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowCustomInput(false); setCustomSkill(''); }}
+                        className="h-10 px-3 rounded-xl bg-zinc-100 text-zinc-500 text-sm font-bold hover:bg-zinc-200 transition-all"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
                   {selectedSkills.length > 0 && (
                     <p className="text-[10px] text-[#40C057] font-bold ml-1">
                       {selectedSkills.length} skill{selectedSkills.length > 1 ? 's' : ''} selected
@@ -317,17 +388,6 @@ export default function OnboardingPage() {
                     maxLength={6}
                     value={pincode}
                     onChange={e => setPincode(e.target.value.replace(/\D/g, ''))}
-                    className="h-14 pl-12 rounded-2xl border-2 border-zinc-100 bg-white focus:border-[#40C057] font-bold"
-                  />
-                </FieldGroup>
-
-                {/* Landmark */}
-                <FieldGroup label="Nearby Landmark" icon={<MapPin />}>
-                  <Input
-                    id="landmark"
-                    placeholder="e.g. Near Rajiv Gandhi Nagar Metro"
-                    value={landmark}
-                    onChange={e => setLandmark(e.target.value)}
                     className="h-14 pl-12 rounded-2xl border-2 border-zinc-100 bg-white focus:border-[#40C057] font-bold"
                   />
                 </FieldGroup>

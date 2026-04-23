@@ -204,16 +204,27 @@ export default function WorkerDashboard() {
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Welcome Back</p>
             <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{worker?.user?.name?.split(' ')[0]}</h1>
           </div>
-          <button 
-            onClick={toggleOnlineStatus}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all duration-500",
-              isOnline ? "bg-[#40C057]/10 text-[#40C057] shadow-lg shadow-[#40C057]/10" : "bg-zinc-100 text-zinc-400"
-            )}
-          >
-            <div className={cn("size-2 rounded-full", isOnline ? "bg-[#40C057] animate-pulse" : "bg-zinc-300")} />
-            {isOnline ? 'Online' : 'Offline'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/profile')}
+              className="size-10 rounded-full bg-[#1B4332]/10 flex items-center justify-center hover:bg-[#1B4332]/20 active:scale-95 transition-all"
+              title="Edit Profile"
+            >
+              <span className={cn(sora.className, "text-sm font-black text-[#1B4332]")}>
+                {worker?.user?.name?.charAt(0)}
+              </span>
+            </button>
+            <button 
+              onClick={toggleOnlineStatus}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all duration-500",
+                isOnline ? "bg-[#40C057]/10 text-[#40C057] shadow-lg shadow-[#40C057]/10" : "bg-zinc-100 text-zinc-400"
+              )}
+            >
+              <div className={cn("size-2 rounded-full", isOnline ? "bg-[#40C057] animate-pulse" : "bg-zinc-300")} />
+              {isOnline ? 'Online' : 'Offline'}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-3">

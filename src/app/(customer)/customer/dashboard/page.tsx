@@ -121,9 +121,13 @@ export default function CustomerDashboard() {
           <Button variant="ghost" size="icon" className="rounded-full bg-white shadow-sm">
             <Bell className="size-5 text-[#1B4332]" />
           </Button>
-          <div className="size-10 rounded-full bg-[#40C057]/10 border-2 border-white flex items-center justify-center">
+          <button
+            onClick={() => router.push('/profile')}
+            className="size-10 rounded-full bg-[#40C057]/10 border-2 border-white flex items-center justify-center hover:bg-[#40C057]/20 active:scale-95 transition-all shadow-sm"
+            title="Edit Profile"
+          >
             <span className="text-sm font-black text-[#1B4332]">{userName.charAt(0)}</span>
-          </div>
+          </button>
         </div>
       </nav>
 
