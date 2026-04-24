@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow, differenceInHours } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -206,6 +207,7 @@ export default function WorkerDashboard() {
             <h1 className={cn("[font-family:var(--font-heading)]","text-2xl text-[#1B4332]")}>{worker?.user?.name?.split(' ')[0]}</h1>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <button
               onClick={() => router.push('/profile')}
               className="size-10 rounded-full bg-[#1B4332]/10 flex items-center justify-center hover:bg-[#1B4332]/20 active:scale-95 transition-all"

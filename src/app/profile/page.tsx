@@ -16,6 +16,7 @@ import {
   SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -211,7 +212,7 @@ export default function ProfilePage() {
   const roleColor = role === 'worker' ? 'bg-blue-50 text-blue-600' : role === 'partner_node' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
 
   return (
-    <div className={'min-h-screen bg-[#F8F9F0]'}>
+    <div className={'min-h-screen bg-[#F8F9F0] dark:bg-zinc-950 transition-colors'}>
       <div className="mx-auto max-w-[500px] px-6 py-10 space-y-8">
 
         {/* Header */}
@@ -223,13 +224,16 @@ export default function ProfilePage() {
             <ArrowLeft className="size-4 group-hover:-translate-x-0.5 transition-transform" />
             Dashboard
           </button>
-          <button
-            onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }}
-            className="flex items-center gap-1.5 text-xs font-bold text-zinc-300 hover:text-red-400 transition-colors"
-          >
-            <LogOut className="size-4" />
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <button
+              onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }}
+              className="flex items-center gap-1.5 text-xs font-bold text-zinc-300 hover:text-red-400 transition-colors"
+            >
+              <LogOut className="size-4" />
+              Sign Out
+            </button>
+          </div>
         </div>
 
         {/* Avatar section */}

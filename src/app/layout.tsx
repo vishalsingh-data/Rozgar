@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: "Rozgar — Hyperlocal Gig Marketplace",
   description: "Hire verified local workers instantly. From repairs to daily labour, Rozgar connects Bharat.",
   manifest: "/manifest.json",
-  themeColor: "#1B4332",
+  themeColor: "#0d0d0d",
 };
 
 export default function RootLayout({
@@ -32,9 +32,24 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sora.variable} ${dmSans.variable} h-full antialiased`}
+      className={`${sora.variable} ${dmSans.variable} h-full antialiased dark`}
       suppressHydrationWarning
     >
+      <head>
+        {/* Prevent flash of wrong theme */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var t = localStorage.getItem('rozgar-theme');
+                var d = document.documentElement;
+                if (t === 'light') { d.classList.remove('dark'); d.classList.add('light'); }
+                else { d.classList.add('dark'); d.classList.remove('light'); }
+              } catch(e) {}
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
         <Toaster position="top-center" richColors />

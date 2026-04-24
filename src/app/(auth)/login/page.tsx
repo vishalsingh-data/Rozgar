@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { supabase } from '@/lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -238,8 +239,12 @@ function LoginPageInner() {
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex min-h-screen w-full flex-col items-center bg-[#fafaf8] dark:bg-zinc-950">
+    <div className="flex min-h-screen w-full flex-col items-center bg-[#fafaf8] dark:bg-zinc-950 transition-colors">
       <div className="flex w-full max-w-[420px] flex-col px-6 pt-16 pb-12">
+        {/* Theme toggle */}
+        <div className="absolute top-5 right-5">
+          <ThemeToggle />
+        </div>
 
         {/* ── Logo ─────────────────────────────────────────────────────────── */}
         <div className="mb-10 flex items-center gap-3">

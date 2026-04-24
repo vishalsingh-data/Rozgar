@@ -18,6 +18,7 @@ import {
   Navigation
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -114,8 +115,9 @@ export default function CustomerDashboard() {
           <h2 className={cn("[font-family:var(--font-heading)]","text-xl text-[#1B4332] tracking-tight")}>Rozgar</h2>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="rounded-full bg-white shadow-sm">
-            <Bell className="size-5 text-[#1B4332]" />
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" className="rounded-full bg-white dark:bg-zinc-800 shadow-sm">
+            <Bell className="size-5 text-[#1B4332] dark:text-[#40C057]" />
           </Button>
           <button
             onClick={() => router.push('/profile')}
