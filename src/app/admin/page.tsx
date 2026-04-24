@@ -8,7 +8,8 @@ export default async function AdminDashboard() {
   const cookieStore = await cookies();
   const token = cookieStore.get('admin_token');
 
-  if (!token || token.value !== 'authenticated') {
+  const expectedToken = process.env.ADMIN_SESSION_SECRET || 'rozgar-admin-fallback-secret';
+  if (!token || token.value !== expectedToken) {
     redirect('/admin/login');
   }
 

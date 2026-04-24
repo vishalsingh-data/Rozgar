@@ -9,10 +9,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Job ID and Worker ID are required' }, { status: 400 });
     }
 
-    // 1. Verify that this worker is assigned to the job
     const { data: job, error: jobError } = await supabaseAdmin
       .from('jobs')
-      .select('accepted_worker_id')
+      .select('accepted_worker_id, status')
       .eq('id', job_id)
       .single();
 
@@ -24,15 +23,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized: You are not assigned to this job' }, { status: 403 });
     }
 
-    // 2. Update status to 'on_site'
+    // Only allow arrival from in_transit state
+    if (job.status !== 'in_transit') {
+      return NextResponse.json({ error: `Cannot mark arrival from status: ${job.status}` }, { status: 400 });
+    }
+
     const { data: updatedJob, error: updateError } = await supabaseAdmin
       .from('jobs')
       .update({ status: 'on_site' })
       .eq('id', job_id)
+      .eq('status', 'in_transit') // Atomic guard
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) throw updateError;
+
+    if (!updatedJob) {
+      return NextResponse.json({ error: 'Job status changed concurrently, please refresh' }, { status: 409 });
+    }
 
     return NextResponse.json(updatedJob);
 

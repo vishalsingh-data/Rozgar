@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { differenceInHours } from 'date-fns';
+
+const APPEAL_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
 
 export async function POST(req: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing appeal information' }, { status: 400 });
     }
 
-    // 1. Fetch Strike and Verify
+    // 1. Fetch Strike
     const { data: strike, error: strikeError } = await supabaseAdmin
       .from('strikes')
       .select('*')
@@ -21,30 +22,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Strike record not found' }, { status: 404 });
     }
 
-    // 2. Verify Worker
+    // 2. Verify ownership
     if (strike.worker_id !== worker_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // 3. Verify Appeal Window (48 hours)
-    const hoursSinceStrike = differenceInHours(new Date(), new Date(strike.created_at));
-    if (hoursSinceStrike > 48) {
-      return NextResponse.json({ error: 'Appeal window (48 hours) has expired' }, { status: 400 });
-    }
-
-    // 4. Check if already appealed
+    // 3. Check already appealed
     if (strike.appealed) {
       return NextResponse.json({ error: 'This strike has already been appealed' }, { status: 400 });
     }
 
-    // 5. Update Strike
+    // 4. Verify 48-hour window using milliseconds (avoids truncation bugs)
+    const strikeAgeMs = Date.now() - new Date(strike.created_at).getTime();
+    if (strikeAgeMs > APPEAL_WINDOW_MS) {
+      return NextResponse.json({ error: 'Appeal window (48 hours) has expired' }, { status: 400 });
+    }
+
+    // 5. Record appeal
     const { data: updatedStrike, error: updateError } = await supabaseAdmin
       .from('strikes')
       .update({
         appealed: true,
         appeal_status: 'pending',
         appeal_note: reason,
-        appeal_evidence_url: evidence_url // Assuming this column exists or will be added
+        appeal_evidence_url: evidence_url || null
       })
       .eq('id', strike_id)
       .select()

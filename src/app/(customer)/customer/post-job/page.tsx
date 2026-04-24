@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
-import { 
+import {
   CheckCircle2, 
   AlertCircle,
   ArrowLeft,
@@ -25,9 +24,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import ImageUpload from '@/components/ImageUpload';
 import { cn } from '@/lib/utils';
-
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 type EstimateResult = {
   interpreted_category: string;
@@ -170,20 +166,20 @@ export default function PostJobPage() {
           <div className="size-3 rounded-full bg-[#40C057] animate-bounce [animation-delay:-0.15s]"></div>
           <div className="size-3 rounded-full bg-[#1B4332] animate-bounce"></div>
         </div>
-        <h2 className={`${sora.className} text-2xl text-[#1B4332]`}>Analysing your job...</h2>
+        <h2 className="[font-family:var(--font-heading)] text-2xl text-[#1B4332]">Analysing your job...</h2>
         <p className="mt-2 text-sm text-zinc-400">Comparing with 10,000+ local market rates</p>
       </div>
     );
   }
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] px-6", dmSans.className)}>
+    <div className={"flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] px-6"}>
       <div className="w-full max-w-[430px] flex flex-col min-h-screen">
         
         {/* Step 1: Input */}
         {step === 1 && (
           <div className="flex flex-col flex-1 justify-center py-12">
-            <h1 className={cn(sora.className, "text-4xl text-[#1B4332] leading-tight text-center mb-10")}>
+            <h1 className={cn("[font-family:var(--font-heading)]","text-4xl text-[#1B4332] leading-tight text-center mb-10")}>
               What do you <br /> need done?
             </h1>
             
@@ -256,7 +252,7 @@ export default function PostJobPage() {
                       )}
                     </Badge>
                   </div>
-                  <h2 className={cn(sora.className, "text-3xl leading-tight mb-2")}>{estimate.interpreted_category}</h2>
+                  <h2 className={cn("[font-family:var(--font-heading)]","text-3xl leading-tight mb-2")}>{estimate.interpreted_category}</h2>
                   <p className="text-sm opacity-60 font-medium leading-relaxed">{estimate.damage_summary}</p>
                 </div>
 

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const GEMINI_TIMEOUT_MS = 15_000;
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required data' }, { status: 400 });
     }
 
-    // 1. Verify Assigned Worker
+    // 1. Verify Assigned Worker and job is on_site
     const { data: job, error: jobError } = await supabaseAdmin
       .from('jobs')
       .select('*')
@@ -27,23 +28,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // 2. Update Job Status
+    if (job.status !== 'on_site') {
+      return NextResponse.json({ error: 'Renegotiation can only be requested while on-site' }, { status: 400 });
+    }
+
+    // 2. Validate new price is strictly higher than current price
+    const currentPrice = job.final_price || job.ai_base_price;
+    const newPriceNum = Number(new_price);
+
+    if (!Number.isFinite(newPriceNum) || newPriceNum <= 0) {
+      return NextResponse.json({ error: 'Invalid price value' }, { status: 400 });
+    }
+
+    if (newPriceNum <= currentPrice) {
+      return NextResponse.json({ error: 'New price must be higher than the current price' }, { status: 400 });
+    }
+
+    // 3. Update Job Status
     await supabaseAdmin
       .from('jobs')
       .update({ status: 'renegotiating' })
       .eq('id', job_id);
 
-    // 3. AI Vision Assessment (If photo provided)
+    // 4. AI Vision Assessment with timeout (non-blocking on failure)
     let ai_verified = false;
     let ai_note = "No photo provided for AI verification.";
 
     if (new_photo_url) {
       try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
-        const prompt = `Is the damage shown in this photo consistent with a repair cost of ₹${new_price} in India? The worker says: "${reason}". 
+        const prompt = `Is the damage shown in this photo consistent with a repair cost of ₹${newPriceNum} in India? The worker says: "${reason}".
         Return JSON with keys: ai_verified (boolean), ai_note (string explaining your assessment).`;
 
-        // Fetch image as base64
         const imageRes = await fetch(new_photo_url);
         const imageBuffer = await imageRes.arrayBuffer();
         const imageData = {
@@ -53,8 +69,15 @@ export async function POST(req: Request) {
           },
         };
 
-        const result = await model.generateContent([prompt, imageData]);
-        const response = await result.response;
+        // Race Gemini against a timeout so one slow API call doesn't hang the request
+        const result = await Promise.race([
+          model.generateContent([prompt, imageData]),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Gemini timeout')), GEMINI_TIMEOUT_MS)
+          )
+        ]);
+
+        const response = await (result as any).response;
         const text = response.text();
         const jsonMatch = text.match(/\{.*\}/s);
         if (jsonMatch) {
@@ -63,19 +86,20 @@ export async function POST(req: Request) {
           ai_note = assessment.ai_note;
         }
       } catch (aiErr: any) {
-        console.error('AI Renegotiation Assessment Failed:', aiErr);
-        ai_note = "AI was unable to process the image at this time.";
+        console.error(`[RENEGOTIATE] AI assessment failed for job ${job_id}:`, aiErr.message);
+        ai_note = aiErr.message === 'Gemini timeout'
+          ? "AI verification timed out. Customer will review manually."
+          : "AI was unable to process the image at this time.";
       }
     }
 
-    // 4. Record Renegotiation
-    const oldPrice = job.final_price || job.ai_base_price;
+    // 5. Record Renegotiation
     const { data: renegotiation, error: recordError } = await supabaseAdmin
       .from('renegotiations')
       .insert({
         job_id,
-        old_price: oldPrice,
-        new_price,
+        old_price: currentPrice,
+        new_price: newPriceNum,
         new_photo_url,
         ai_verified,
         ai_note,
@@ -86,8 +110,7 @@ export async function POST(req: Request) {
 
     if (recordError) throw recordError;
 
-    // 5. Notify Customer (FCM later)
-    console.log(`[PUSH] Notification would fire to customer ${job.customer_id}: Worker found hidden damage. AI Assessment: ${ai_verified ? 'Verified' : 'Flagged'}`);
+    console.log(`[PUSH] Notify customer ${job.customer_id}: Worker found hidden damage for job ${job_id}. AI: ${ai_verified ? 'Verified' : 'Not verified'}`);
 
     return NextResponse.json(renegotiation);
 

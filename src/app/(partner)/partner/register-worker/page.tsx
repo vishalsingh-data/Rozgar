@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import { 
   ArrowLeft, 
   User, 
@@ -36,8 +35,6 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import ImageUpload from '@/components/ImageUpload';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function RegisterWorkerPage() {
   const router = useRouter();
@@ -128,11 +125,11 @@ export default function RegisterWorkerPage() {
 
   if (success) {
     return (
-      <div className={cn("flex min-h-screen flex-col items-center justify-center bg-[#F8F9F0] px-6 text-center", dmSans.className)}>
+      <div className={cn("flex min-h-screen flex-col items-center justify-center bg-[#F8F9F0] px-6 text-center")}>
         <div className="size-24 rounded-[32px] bg-[#40C057] flex items-center justify-center text-white mb-8 shadow-2xl shadow-[#40C057]/20">
           <CheckCircle2 className="size-12" />
         </div>
-        <h1 className={cn(sora.className, "text-3xl text-[#1B4332] mb-4")}>Onboarding Complete!</h1>
+        <h1 className={cn("[font-family:var(--font-heading)] text-3xl text-[#1B4332] mb-4")}>Onboarding Complete!</h1>
         <p className="text-zinc-500 max-w-[300px] mb-12">
           Worker <span className="font-black text-[#1B4332]">{formData.name}</span> is now live on Rozgar.
           {!formData.has_smartphone && " They will receive job alerts via missed calls."}
@@ -146,7 +143,7 @@ export default function RegisterWorkerPage() {
   }
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24", dmSans.className)}>
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24")}>
       
       {/* Header */}
       <header className="px-6 py-10 space-y-4">
@@ -154,7 +151,7 @@ export default function RegisterWorkerPage() {
           <ArrowLeft className="mr-1 size-4 transition-transform group-hover:-translate-x-1" />
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Back</span>
         </button>
-        <h1 className={cn(sora.className, "text-3xl text-[#1B4332] leading-tight")}>Onboard New Pro</h1>
+        <h1 className={cn("[font-family:var(--font-heading)] text-3xl text-[#1B4332] leading-tight")}>Onboard New Pro</h1>
         <p className="text-sm text-zinc-400 font-medium">Add a new worker to your fleet. AI will help with skills.</p>
       </header>
 
@@ -163,7 +160,7 @@ export default function RegisterWorkerPage() {
           
           {/* Section: Basic Info */}
           <div className="space-y-6">
-            <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-300")}>1. Personal Intel</h3>
+            <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest text-zinc-300")}>1. Personal Intel</h3>
             <div className="space-y-4">
               <div className="relative">
                 <User className="absolute left-4 top-4 size-5 text-zinc-300" />
@@ -189,7 +186,7 @@ export default function RegisterWorkerPage() {
           {/* Section: Skills & AI */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-300")}>2. Work Profile</h3>
+              <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest text-zinc-300")}>2. Work Profile</h3>
               <Sparkles className={cn("size-4", parsing ? "text-[#40C057] animate-spin" : "text-zinc-200")} />
             </div>
             <div className="space-y-4">
@@ -266,7 +263,7 @@ export default function RegisterWorkerPage() {
 
           {/* Section: KYC Verification */}
           <div className="space-y-6">
-            <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-300")}>3. KYC Verification</h3>
+            <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest text-zinc-300")}>3. KYC Verification</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <p className="text-[10px] font-black uppercase text-zinc-400 ml-2">Aadhar Front</p>

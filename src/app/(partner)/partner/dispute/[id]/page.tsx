@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import { 
   ArrowLeft, 
   Scale, 
@@ -26,12 +25,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function PartnerDisputePage() {
   const { id: jobId } = useParams();
@@ -104,7 +102,7 @@ export default function PartnerDisputePage() {
   if (loading) return <MediationSkeleton />;
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32", dmSans.className)}>
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32")}>
       
       {/* Header */}
       <header className="px-6 py-10 space-y-4">
@@ -116,7 +114,7 @@ export default function PartnerDisputePage() {
           <div className="size-10 rounded-2xl bg-[#1B4332] flex items-center justify-center text-white shadow-lg">
             <Scale className="size-6" />
           </div>
-          <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>Mediation Center</h1>
+          <h1 className={cn("[font-family:var(--font-heading)] text-2xl text-[#1B4332]")}>Mediation Center</h1>
         </div>
       </header>
 
@@ -149,7 +147,7 @@ export default function PartnerDisputePage() {
           
           {/* Customer Column */}
           <section className="space-y-4">
-            <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-[#1B4332] flex items-center gap-2")}>
+            <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest text-[#1B4332] flex items-center gap-2")}>
               <User className="size-4" /> Customer's Claim
             </h3>
             <Card className="rounded-[32px] border-none bg-white p-6 shadow-sm min-h-[200px] border border-zinc-50">
@@ -173,7 +171,7 @@ export default function PartnerDisputePage() {
 
           {/* Worker Column */}
           <section className="space-y-4">
-            <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-[#1B4332] flex items-center gap-2")}>
+            <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest text-[#1B4332] flex items-center gap-2")}>
               <Wrench className="size-4" /> Worker's Side
             </h3>
             <Card className="rounded-[32px] border-none bg-white p-6 shadow-sm min-h-[200px] border border-zinc-50">
@@ -192,7 +190,7 @@ export default function PartnerDisputePage() {
 
         {/* Mediation Decision */}
         <section className="space-y-6 pt-10 border-t border-zinc-100">
-          <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+          <h3 className={cn("[font-family:var(--font-heading)] text-lg text-[#1B4332] flex items-center gap-2")}>
             <Scale className="size-5 text-[#40C057]" /> Resolution Verdict
           </h3>
 

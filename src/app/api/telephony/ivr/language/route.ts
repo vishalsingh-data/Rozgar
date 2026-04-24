@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const isHindi = digit !== '2'; // Default to Hindi if not 2
 
   const gather = twiml.gather({
-    numDigits: '1',
+    numDigits: 1,
     action: `/api/telephony/ivr/gather?lang=${isHindi ? 'hi' : 'en'}`,
     method: 'POST',
     timeout: 10,

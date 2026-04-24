@@ -1,9 +1,8 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
-import { 
+import {
   Star, 
   MapPin, 
   ShieldCheck, 
@@ -16,7 +15,9 @@ import {
   Clock,
   Navigation,
   RefreshCcw,
-  AlertCircle
+  AlertCircle,
+  Info,
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,8 +30,6 @@ import SLATimer from '@/components/SLATimer';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 type Bid = {
   id: string;
@@ -217,7 +216,7 @@ export default function JobDetailsPage() {
   const isTracking = ['assigned', 'in_transit', 'on_site', 'complete'].includes(job.status);
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32", dmSans.className)}>
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32")}>
       
       {/* Header */}
       <header className="px-6 py-8 space-y-4">
@@ -232,7 +231,7 @@ export default function JobDetailsPage() {
               <div className="size-24 rounded-full border-4 border-dashed border-[#1B4332]/20 animate-spin" />
               <Radio className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-10 text-[#1B4332]" />
             </div>
-            <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>Broadcasting your job...</h1>
+            <h1 className={cn("[font-family:var(--font-heading)] text-2xl text-[#1B4332]")}>Broadcasting your job...</h1>
             <p className="text-zinc-500 max-w-[280px]">We're notifying verified workers in {job.pincode} right now.</p>
           </div>
         )}
@@ -240,7 +239,7 @@ export default function JobDetailsPage() {
         {job.status !== 'pending' && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{job.interpreted_category}</h1>
+              <h1 className={cn("[font-family:var(--font-heading)] text-2xl text-[#1B4332]")}>{job.interpreted_category}</h1>
               <Badge className="bg-[#40C057] text-[#1B4332] font-black uppercase text-[10px]">
                 {job.status.replace('_', ' ')}
               </Badge>
@@ -259,7 +258,7 @@ export default function JobDetailsPage() {
                 <AlertCircle className="size-6" />
               </div>
               <div className="space-y-1">
-                <h3 className={cn(sora.className, "text-lg text-amber-900")}>Price Change Requested</h3>
+                <h3 className={cn("[font-family:var(--font-heading)] text-lg text-amber-900")}>Price Change Requested</h3>
                 <p className="text-xs text-amber-700/70 font-medium">Worker found hidden damage on-site</p>
               </div>
             </div>
@@ -326,7 +325,7 @@ export default function JobDetailsPage() {
         {job.status === 'bidding' && (
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <h2 className={cn(sora.className, "text-lg text-[#1B4332]")}>Worker Bids</h2>
+              <h2 className={cn("[font-family:var(--font-heading)] text-lg text-[#1B4332]")}>Worker Bids</h2>
               <div className="flex items-center gap-2 text-xs font-bold text-[#40C057]">
                 <div className="size-2 rounded-full bg-[#40C057] animate-ping" />
                 {bids.length} workers interested
@@ -689,7 +688,7 @@ function TrackingView({ job, customerId }: { job: any; customerId: string }) {
             )}
           </div>
           <div className="flex-1 space-y-2">
-            <h3 className={cn(sora.className, "text-2xl font-black")}>{worker.name}</h3>
+            <h3 className={cn("[font-family:var(--font-heading)] text-2xl font-black")}>{worker.name}</h3>
             <div className="flex items-center gap-4">
               <a href={`tel:${worker.phone}`} className="flex items-center gap-2 bg-[#40C057] text-[#1B4332] px-4 py-2 rounded-full font-black text-xs transition-transform active:scale-95">
                 <Phone className="size-3" fill="currentColor" />
@@ -759,12 +758,6 @@ function TrackingView({ job, customerId }: { job: any; customerId: string }) {
       )}
     </div>
   );
-}
-
-function ArrowLeft(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-  )
 }
 
 function isAfter(date1: Date, date2: Date) {

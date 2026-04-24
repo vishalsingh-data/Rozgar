@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       Return ONLY valid JSON.
     `;
 
-    const groqResponse = await parseWithGroq(prompt);
+    const groqResponse = await parseWithGroq(prompt, 'english');
     console.log('Raw Groq Response:', groqResponse);
     
     let parsedData;

@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import {
   Clock,
   CheckCircle2,
@@ -20,8 +19,6 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 const STEPS = [
   { label: 'Application submitted', done: true },
@@ -90,7 +87,7 @@ export default function PartnerPendingPage() {
       toast.success('Your account is approved! Redirecting...');
       router.replace('/partner/dashboard');
     } else {
-      toast.info('Still under review. We'll notify you via SMS.');
+      toast.info("Still under review. We'll notify you via SMS.");
       setChecking(false);
     }
   };
@@ -104,7 +101,7 @@ export default function PartnerPendingPage() {
   }
 
   return (
-    <div className={cn('flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] px-6 py-16', dmSans.className)}>
+    <div className={cn('flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] px-6 py-16')}>
       <div className="w-full max-w-[460px] space-y-8">
 
         {/* Status Badge */}
@@ -124,7 +121,7 @@ export default function PartnerPendingPage() {
               <ShieldCheck className="size-12 text-[#40C057]" />
             </div>
           </div>
-          <h1 className={cn(sora.className, 'text-3xl text-[#1B4332] leading-tight')}>
+          <h1 className={cn('[font-family:var(--font-heading)] text-3xl text-[#1B4332] leading-tight')}>
             Application<br />Received!
           </h1>
           <p className={cn('text-zinc-500 font-medium max-w-sm mx-auto leading-relaxed')}>

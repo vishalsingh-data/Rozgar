@@ -9,7 +9,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing job or worker information' }, { status: 400 });
     }
 
-    // 1. Check for existing bid (Idempotency)
+    // 1. Verify job exists and is still accepting bids
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from('jobs')
+      .select('status')
+      .eq('id', job_id)
+      .single();
+
+    if (jobError || !job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    if (job.status !== 'bidding') {
+      return NextResponse.json({ error: 'This job is no longer accepting bids' }, { status: 400 });
+    }
+
+    // 2. Idempotency: check for existing bid
     const { data: existingBid } = await supabaseAdmin
       .from('bids')
       .select('*')
@@ -21,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json(existingBid);
     }
 
-    // 2. Guarantee the worker has a workers table row (prevents join crash on customer side)
+    // 3. Ensure worker profile row exists (prevents join crash on customer side)
     await supabaseAdmin
       .from('workers')
       .upsert({
@@ -33,9 +48,21 @@ export async function POST(req: Request) {
         is_new: true,
         searchable_as: [],
         availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      }, { onConflict: 'user_id', ignoreDuplicates: true }); // ignoreDuplicates = don't overwrite existing data
+      }, { onConflict: 'user_id', ignoreDuplicates: true });
 
-    // 3. Sync with Job Pings (Update alert status)
+    // 4. Insert the new Bid
+    const { data: newBid, error: bidError } = await supabaseAdmin
+      .from('bids')
+      .insert({ job_id, worker_id, source, status: 'pending' })
+      .select()
+      .single();
+
+    if (bidError) {
+      console.error(`[Bids] Insert error job=${job_id} worker=${worker_id}:`, bidError);
+      return NextResponse.json({ error: 'Failed to submit bid' }, { status: 500 });
+    }
+
+    // 5. Update job ping status (best-effort — non-fatal if no ping exists)
     const { error: pingUpdateError } = await supabaseAdmin
       .from('job_pings')
       .update({ status: 'bid_placed' })
@@ -43,27 +70,9 @@ export async function POST(req: Request) {
       .eq('worker_id', worker_id);
 
     if (pingUpdateError) {
-      console.warn('Job Ping update failed, continuing with bid insertion:', pingUpdateError.message);
+      console.warn(`[Bids] Ping update skipped for job=${job_id} worker=${worker_id}: ${pingUpdateError.message}`);
     }
 
-    // 4. Insert the new Bid
-    const { data: newBid, error: bidError } = await supabaseAdmin
-      .from('bids')
-      .insert({
-        job_id,
-        worker_id,
-        source,
-        status: 'pending'
-      })
-      .select()
-      .single();
-
-    if (bidError) {
-      console.error('Bid insertion error:', bidError);
-      return NextResponse.json({ error: 'Failed to submit bid' }, { status: 500 });
-    }
-
-    // 4. Return the newly created bid
     return NextResponse.json(newBid);
 
   } catch (err: any) {

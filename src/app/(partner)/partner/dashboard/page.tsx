@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import { 
   Users, 
   IndianRupee, 
@@ -29,8 +28,6 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, startOfMonth } from 'date-fns';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function PartnerDashboard() {
   const router = useRouter();
@@ -144,14 +141,14 @@ export default function PartnerDashboard() {
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32", dmSans.className)}>
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32")}>
       
       {/* Header */}
       <header className="px-6 pt-10 pb-8 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Node Management</p>
-            <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{partnerNode?.name || 'My Node'}</h1>
+            <h1 className={cn("[font-family:var(--font-heading)] text-2xl text-[#1B4332]")}>{partnerNode?.name || 'My Node'}</h1>
           </div>
           <div className="flex items-center gap-3">
             <Button 
@@ -160,7 +157,7 @@ export default function PartnerDashboard() {
               className="size-12 rounded-2xl bg-white border-2 border-zinc-100 shadow-sm hover:border-[#1B4332]/20 active:scale-95 transition-all"
               title="Edit Profile"
             >
-              <span className={cn(sora.className, "text-base font-black text-[#1B4332]")}>
+              <span className={cn("[font-family:var(--font-heading)] text-base font-black text-[#1B4332]")}>
                 {(partnerNode?.name || 'P').charAt(0)}
               </span>
             </Button>
@@ -216,7 +213,7 @@ export default function PartnerDashboard() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-red-500">
               <ShieldAlert className="size-5" />
-              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Urgent Disputes</h3>
+              <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest")}>Urgent Disputes</h3>
             </div>
             <div className="space-y-3">
               {disputes.map(job => (
@@ -245,7 +242,7 @@ export default function PartnerDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-[#1B4332]">
               <Activity className="size-5 text-[#40C057]" />
-              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Active Ops</h3>
+              <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest")}>Active Ops</h3>
             </div>
             <Badge variant="secondary" className="bg-[#40C057]/10 text-[#40C057] border-none px-3 font-black">{activeJobs.length} Live</Badge>
           </div>
@@ -278,7 +275,7 @@ export default function PartnerDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-[#1B4332]">
               <Users className="size-5 text-[#40C057]" />
-              <h3 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>My Fleet</h3>
+              <h3 className={cn("[font-family:var(--font-heading)] text-sm font-black uppercase tracking-widest")}>My Fleet</h3>
             </div>
             <Button variant="ghost" size="sm" className="text-zinc-400 font-bold text-xs uppercase tracking-widest">
               <Filter className="size-3 mr-2" />

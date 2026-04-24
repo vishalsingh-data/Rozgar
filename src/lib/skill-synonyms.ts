@@ -1,14 +1,3 @@
-/**
- * SKILL SYNONYMS MAP
- * Maps every worker skill chip label → all words/phrases the AI might use.
- * Used for fuzzy matching in job broadcast so "Cook/Chef" matches "Cooking",
- * "AC Technician" matches "Air Conditioning", etc.
- *
- * Rules:
- * - Keys are lowercase versions of chip labels
- * - Values include the key itself + all realistic AI tag variants
- * - Keep entries short (single words or 2-word phrases) for substring matching
- */
 export const SKILL_SYNONYMS: Record<string, string[]> = {
   'electrician': [
     'electrician', 'electrical', 'electric', 'wiring', 'wire', 'circuit',
@@ -79,29 +68,30 @@ export const SKILL_SYNONYMS: Record<string, string[]> = {
   ],
 };
 
+// Normalize a string: lowercase, collapse whitespace
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Returns true if any required AI tag matches any of the worker's skills
  * using the synonym map + bidirectional substring fallback.
  */
 export function skillsMatch(workerSkills: string[], requiredTags: string[]): boolean {
-  if (requiredTags.length === 0) return true;   // job has no tags → all workers eligible
+  if (requiredTags.length === 0) return true;
   if (workerSkills.length === 0) return false;
 
-  const tagsLower = requiredTags.map(t => t.toLowerCase());
+  const tagsNorm = requiredTags.map(normalize);
 
   for (const skill of workerSkills) {
-    const skillLower = skill.toLowerCase();
+    const skillNorm = normalize(skill);
+    const synonyms = SKILL_SYNONYMS[skillNorm] ?? [skillNorm];
 
-    // Get all synonyms for this skill chip (key lookup + fallback to skill itself)
-    const synonyms = SKILL_SYNONYMS[skillLower] ?? [skillLower];
-
-    for (const tag of tagsLower) {
-      // 1. Check synonym list (exact word match)
+    for (const tag of tagsNorm) {
       if (synonyms.some(s => s === tag || tag.includes(s) || s.includes(tag))) {
         return true;
       }
-      // 2. Bidirectional substring fallback for custom/unknown skills
-      if (skillLower.includes(tag) || tag.includes(skillLower)) {
+      if (skillNorm.includes(tag) || tag.includes(skillNorm)) {
         return true;
       }
     }

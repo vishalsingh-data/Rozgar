@@ -13,7 +13,8 @@ export async function loginAdmin(formData: FormData) {
   ) {
     // Set a secure, HTTP-only cookie to identify the admin session
     const cookieStore = await cookies();
-    cookieStore.set('admin_token', 'authenticated', {
+    const sessionValue = process.env.ADMIN_SESSION_SECRET || 'rozgar-admin-fallback-secret';
+    cookieStore.set('admin_token', sessionValue, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

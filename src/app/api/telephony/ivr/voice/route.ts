@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const twiml = new VoiceResponse();
 
   const gather = twiml.gather({
-    numDigits: '1',
+    numDigits: 1,
     action: '/api/telephony/ivr/language',
     method: 'POST',
     timeout: 8,

@@ -16,7 +16,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
 
   // Build multipart form — Groq uses the OpenAI-compatible Whisper endpoint
   const formData = new FormData();
-  const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+  const audioBlob = new Blob([audioBuffer as unknown as BlobPart], { type: 'audio/mpeg' });
   formData.append('file', audioBlob, 'recording.mp3');
   formData.append('model', 'whisper-large-v3');
   // Don't force a language — let Whisper auto-detect Hindi/English/Hinglish

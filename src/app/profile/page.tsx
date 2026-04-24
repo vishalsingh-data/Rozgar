@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import {
   ArrowLeft, Camera, CheckCircle2, Loader2,
   User, Languages, MapPin, Wrench, Store,
@@ -20,9 +19,6 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 const SKILLS = [
   'Electrician', 'Plumber', 'Carpenter', 'Painter',
@@ -215,7 +211,7 @@ export default function ProfilePage() {
   const roleColor = role === 'worker' ? 'bg-blue-50 text-blue-600' : role === 'partner_node' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
 
   return (
-    <div className={cn('min-h-screen bg-[#F8F9F0]', dmSans.className)}>
+    <div className={'min-h-screen bg-[#F8F9F0]'}>
       <div className="mx-auto max-w-[500px] px-6 py-10 space-y-8">
 
         {/* Header */}
@@ -243,7 +239,7 @@ export default function ProfilePage() {
               {avatarUrl ? (
                 <Image src={avatarUrl} alt="Profile" fill className="object-cover" unoptimized />
               ) : (
-                <span className={cn('text-4xl font-black text-white', sora.className)}>
+                <span className={'text-4xl font-black text-white [font-family:var(--font-heading)]'}>
                   {name.charAt(0).toUpperCase()}
                 </span>
               )}
@@ -270,7 +266,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="text-center space-y-2">
-            <h1 className={cn('text-2xl text-[#1B4332]', sora.className)}>{name}</h1>
+            <h1 className={'text-2xl text-[#1B4332] [font-family:var(--font-heading)]'}>{name}</h1>
             <div className="flex items-center gap-2 justify-center">
               <span className={cn('text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full', roleColor)}>
                 {roleLabel}

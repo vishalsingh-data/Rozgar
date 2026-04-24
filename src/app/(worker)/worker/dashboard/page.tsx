@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
-import { 
-  Trophy, 
-  Target, 
-  AlertTriangle, 
-  Clock, 
-  MapPin, 
+import {
+  Trophy,
+  Target,
+  AlertTriangle,
+  Clock,
+  MapPin,
   Navigation,
   ChevronRight,
   Loader2,
@@ -42,9 +41,6 @@ import { formatDistanceToNow, differenceInHours } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { initializeMessaging } from '@/lib/firebase';
 import ImageUpload from '@/components/ImageUpload';
-
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function WorkerDashboard() {
   const router = useRouter();
@@ -200,14 +196,14 @@ export default function WorkerDashboard() {
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24", dmSans.className)}>
+    <div className={"flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24"}>
       
       {/* Header with Stats */}
       <header className="px-6 pt-10 pb-8 space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Welcome Back</p>
-            <h1 className={cn(sora.className, "text-2xl text-[#1B4332]")}>{worker?.user?.name?.split(' ')[0]}</h1>
+            <h1 className={cn("[font-family:var(--font-heading)]","text-2xl text-[#1B4332]")}>{worker?.user?.name?.split(' ')[0]}</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -215,7 +211,7 @@ export default function WorkerDashboard() {
               className="size-10 rounded-full bg-[#1B4332]/10 flex items-center justify-center hover:bg-[#1B4332]/20 active:scale-95 transition-all"
               title="Edit Profile"
             >
-              <span className={cn(sora.className, "text-sm font-black text-[#1B4332]")}>
+              <span className={cn("[font-family:var(--font-heading)]","text-sm font-black text-[#1B4332]")}>
                 {worker?.user?.name?.charAt(0)}
               </span>
             </button>
@@ -265,7 +261,7 @@ export default function WorkerDashboard() {
               </div>
               <div className="flex-1">
                 <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Need something fixed?</p>
-                <h3 className={cn(sora.className, "text-lg text-[#1B4332] leading-tight mt-0.5")}>Book a Service</h3>
+                <h3 className={cn("[font-family:var(--font-heading)]","text-lg text-[#1B4332] leading-tight mt-0.5")}>Book a Service</h3>
                 <p className="text-xs text-zinc-400 font-medium mt-1">Post a job and hire a verified pro for your home</p>
               </div>
               <ChevronRight className="size-5 text-zinc-200 group-hover:text-[#40C057] group-hover:translate-x-0.5 transition-all" />
@@ -278,7 +274,7 @@ export default function WorkerDashboard() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-[#1B4332]">
               <Activity className="size-4 text-[#40C057]" />
-              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Active Mission</h2>
+              <h2 className={cn("[font-family:var(--font-heading)]","text-sm font-black uppercase tracking-widest")}>Active Mission</h2>
             </div>
             <Card className="rounded-[32px] border-none bg-[#1B4332] text-white shadow-2xl shadow-[#1B4332]/20 overflow-hidden group">
               <CardContent className="p-8 space-y-6">
@@ -308,7 +304,7 @@ export default function WorkerDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-[#1B4332]">
               <Zap className="size-4 text-[#40C057]" />
-              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Job Radar</h2>
+              <h2 className={cn("[font-family:var(--font-heading)]","text-sm font-black uppercase tracking-widest")}>Job Radar</h2>
             </div>
           </div>
 
@@ -341,7 +337,7 @@ export default function WorkerDashboard() {
           <section className="space-y-6">
             <div className="flex items-center gap-2 text-red-500">
               <AlertTriangle className="size-4" />
-              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest")}>Penalty Record</h2>
+              <h2 className={cn("[font-family:var(--font-heading)]","text-sm font-black uppercase tracking-widest")}>Penalty Record</h2>
             </div>
             <div className="space-y-4">
               {strikes.map(strike => (
@@ -360,7 +356,7 @@ export default function WorkerDashboard() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-[#1B4332]">
               <Wrench className="size-4 text-zinc-300" />
-              <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-400")}>My Bookings</h2>
+              <h2 className={cn("[font-family:var(--font-heading)]","text-sm font-black uppercase tracking-widest text-zinc-400")}>My Bookings</h2>
               <span className="ml-auto text-[10px] font-black uppercase text-zinc-300">{myBookings.length} job{myBookings.length > 1 ? 's' : ''}</span>
             </div>
             <div className="space-y-3">
@@ -393,7 +389,7 @@ export default function WorkerDashboard() {
         <section className="space-y-6 pb-12">
           <div className="flex items-center gap-2 text-[#1B4332]">
             <HistoryIcon className="size-4 text-zinc-300" />
-            <h2 className={cn(sora.className, "text-sm font-black uppercase tracking-widest text-zinc-400")}>Recent History</h2>
+            <h2 className={cn("[font-family:var(--font-heading)]","text-sm font-black uppercase tracking-widest text-zinc-400")}>Recent History</h2>
           </div>
           <div className="space-y-3">
             {recentJobs.length > 0 ? recentJobs.map(job => (
@@ -474,7 +470,7 @@ function StrikeCard({ strike, onAppealSuccess }: { strike: any, onAppealSuccess:
           </DialogTrigger>
           <DialogContent className="rounded-[40px] border-none bg-white p-8 max-w-[400px]">
             <DialogHeader>
-              <DialogTitle className={cn(sora.className, "text-2xl text-[#1B4332]")}>Strike Appeal</DialogTitle>
+              <DialogTitle className={cn("[font-family:var(--font-heading)]","text-2xl text-[#1B4332]")}>Strike Appeal</DialogTitle>
               <DialogDescription className="text-xs font-medium text-zinc-400 pt-1">
                 Provide evidence to dispute this strike. Window closes in {48 - hoursSinceStrike}h.
               </DialogDescription>

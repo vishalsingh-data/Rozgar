@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
-import { 
-  Plus, 
-  Clock, 
-  ShieldCheck, 
-  History, 
-  MapPin, 
+import {
+  Plus,
+  Clock,
+  ShieldCheck,
+  History,
+  MapPin,
   ChevronRight,
   Loader2,
   AlertCircle,
@@ -36,9 +35,6 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 type Job = {
   id: string;
@@ -109,13 +105,13 @@ export default function CustomerDashboard() {
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24", dmSans.className)}>
+    <div className={"flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-24"}>
       
       {/* Navbar */}
       <nav className="sticky top-0 z-20 bg-[#F8F9F0]/80 backdrop-blur-md px-6 py-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="size-10 rounded-2xl bg-[#1B4332] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[#1B4332]/20">R</div>
-          <h2 className={cn(sora.className, "text-xl text-[#1B4332] tracking-tight")}>Rozgar</h2>
+          <h2 className={cn("[font-family:var(--font-heading)]","text-xl text-[#1B4332] tracking-tight")}>Rozgar</h2>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="rounded-full bg-white shadow-sm">
@@ -135,7 +131,7 @@ export default function CustomerDashboard() {
         {/* Greeting & CTA */}
         <div className="space-y-6">
           <div>
-            <h1 className={cn(sora.className, "text-3xl text-[#1B4332] leading-tight")}>
+            <h1 className={cn("[font-family:var(--font-heading)]","text-3xl text-[#1B4332] leading-tight")}>
               Hello, <br />{userName.split(' ')[0]}!
             </h1>
             <p className="mt-2 text-zinc-500 font-medium italic">What can we fix for you today?</p>
@@ -155,7 +151,7 @@ export default function CustomerDashboard() {
         {/* Active Jobs */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+            <h3 className={cn("[font-family:var(--font-heading)]","text-lg text-[#1B4332] flex items-center gap-2")}>
               <Navigation className="size-5 text-[#40C057]" />
               Active Jobs
             </h3>
@@ -179,7 +175,7 @@ export default function CustomerDashboard() {
         {/* Active Warranties */}
         {warranties.length > 0 && (
           <section className="space-y-6">
-            <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+            <h3 className={cn("[font-family:var(--font-heading)]","text-lg text-[#1B4332] flex items-center gap-2")}>
               <ShieldCheck className="size-5 text-[#40C057]" />
               Active Warranties
             </h3>
@@ -193,7 +189,7 @@ export default function CustomerDashboard() {
 
         {/* Past Jobs */}
         <section className="space-y-6">
-          <h3 className={cn(sora.className, "text-lg text-[#1B4332] flex items-center gap-2")}>
+          <h3 className={cn("[font-family:var(--font-heading)]","text-lg text-[#1B4332] flex items-center gap-2")}>
             <History className="size-5 text-zinc-400" />
             Past Jobs
           </h3>
@@ -264,7 +260,7 @@ function JobDashboardCard({ job, onClick }: { job: Job, onClick: () => void }) {
 }
 
 
-function WarrantyCard({ job, onClaimSuccess }: { job: Job, onClaimSuccess: () => void }) {
+function WarrantyCard({ job, onClaimSuccess }: { job: Job, onClaimSuccess?: () => void }) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -297,7 +293,7 @@ function WarrantyCard({ job, onClaimSuccess }: { job: Job, onClaimSuccess: () =>
 
       toast.success('Warranty claim filed! We have notified the worker.');
       setOpen(false);
-      onClaimSuccess();
+      onClaimSuccess?.();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -335,7 +331,7 @@ function WarrantyCard({ job, onClaimSuccess }: { job: Job, onClaimSuccess: () =>
           </DialogTrigger>
           <DialogContent className="rounded-[40px] border-none bg-white p-8 max-w-[400px]">
             <DialogHeader>
-              <DialogTitle className={cn(sora.className, "text-2xl text-[#1B4332]")}>Warranty Claim</DialogTitle>
+              <DialogTitle className={cn("[font-family:var(--font-heading)]","text-2xl text-[#1B4332]")}>Warranty Claim</DialogTitle>
               <DialogDescription className="text-xs font-medium text-zinc-400 pt-1">
                 Tell us what happened with the repair for <b>{job.interpreted_category}</b>.
               </DialogDescription>

@@ -24,63 +24,71 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized: You are not assigned to this job' }, { status: 403 });
     }
 
-    // 2. Update Job: Status and Warranty (7 Days)
+    // Guard: null worker_id should never happen but be safe
+    if (!job.accepted_worker_id) {
+      return NextResponse.json({ error: 'No worker assigned to this job' }, { status: 400 });
+    }
+
+    // 2. Idempotency: only update if not already complete
+    // Use a conditional update — if it returns no row, job was already completed
     const warrantyExpires = new Date();
     warrantyExpires.setDate(warrantyExpires.getDate() + 7);
 
-    const { data: updatedJob, error: updateError } = await supabaseAdmin
+    const { data: updatedJob } = await supabaseAdmin
       .from('jobs')
-      .update({ 
+      .update({
         status: 'complete',
         warranty_expires_at: warrantyExpires.toISOString()
       })
       .eq('id', job_id)
+      .neq('status', 'complete') // Atomic guard — skip if already complete
       .select()
-      .single();
+      .maybeSingle();
 
-    if (updateError) throw updateError;
+    if (!updatedJob) {
+      // Already completed — return current state without touching stats again
+      const { data: existingJob } = await supabaseAdmin.from('jobs').select().eq('id', job_id).single();
+      return NextResponse.json(existingJob);
+    }
 
-    // 3. Update Worker Statistics
-    // Get count of all completed jobs for this worker
-    const { count: completedCount } = await supabaseAdmin
-      .from('jobs')
-      .select('*', { count: 'exact', head: true })
-      .eq('accepted_worker_id', worker_id)
-      .eq('status', 'complete');
+    // 3. Update Worker Statistics using counts from DB (not incremental to stay accurate)
+    const [{ count: completedCount }, { count: totalAssigned }] = await Promise.all([
+      supabaseAdmin
+        .from('jobs')
+        .select('*', { count: 'exact', head: true })
+        .eq('accepted_worker_id', worker_id)
+        .eq('status', 'complete'),
+      supabaseAdmin
+        .from('jobs')
+        .select('*', { count: 'exact', head: true })
+        .eq('accepted_worker_id', worker_id)
+    ]);
 
-    // Get count of all assigned jobs to calculate completion rate
-    const { count: totalAssigned } = await supabaseAdmin
-      .from('jobs')
-      .select('*', { count: 'exact', head: true })
-      .eq('accepted_worker_id', worker_id);
-
-    const completionRate = totalAssigned && totalAssigned > 0 
-      ? Math.round(((completedCount || 0) / totalAssigned) * 100) 
+    const completionRate = totalAssigned && totalAssigned > 0
+      ? Math.round(((completedCount || 0) / totalAssigned) * 100)
       : 0;
 
-    // Fetch current worker profile to check partner_node_id
     const { data: workerProfile } = await supabaseAdmin
       .from('workers')
-      .select('*')
+      .select('total_jobs, partner_node_id')
       .eq('user_id', worker_id)
       .single();
 
     if (workerProfile) {
-      const newTotalJobs = (workerProfile.total_jobs || 0) + 1;
-      
+      const newTotalJobs = (completedCount || 0); // Use actual DB count, not stored+1
+
       await supabaseAdmin
         .from('workers')
         .update({
           total_jobs: newTotalJobs,
           completion_rate: completionRate,
-          is_new: newTotalJobs < 3 // Graduate from 'New Pro' after 3 jobs
+          is_new: newTotalJobs < 3
         })
         .eq('user_id', worker_id);
 
       // 4. Handle Partner Commission (40% of Platform Fee)
       if (workerProfile.partner_node_id) {
-        // Calculate original convenience fee (based on our business logic)
-        const convenienceFee = (job.final_price || 0) <= 300 ? 25 : 49;
+        const convenienceFee = (updatedJob.final_price || 0) <= 300 ? 25 : 49;
         const partnerAmount = Math.floor(convenienceFee * 0.4);
 
         await supabaseAdmin
@@ -92,7 +100,7 @@ export async function POST(req: Request) {
             amount: partnerAmount,
             status: 'pending'
           });
-          
+
         console.log(`[LEDGER] Recorded commission of ₹${partnerAmount} for partner ${workerProfile.partner_node_id}`);
       }
     }

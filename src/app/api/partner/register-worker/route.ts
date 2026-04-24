@@ -4,37 +4,35 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 export async function POST(req: Request) {
   try {
     const data = await req.json();
-    const { 
-      name, 
-      phone, 
-      description, 
-      language_pref, 
-      worker_type, 
-      has_smartphone, 
-      aadhar_front_url, 
-      aadhar_back_url, 
-      tags, 
+    const {
+      name,
+      phone,
+      description,
+      language_pref,
+      worker_type,
+      has_smartphone,
+      aadhar_front_url,
+      aadhar_back_url,
+      tags,
       category,
-      partner_node_id 
+      partner_node_id
     } = data;
 
     if (!name || !phone || !partner_node_id) {
       return NextResponse.json({ error: 'Missing critical information' }, { status: 400 });
     }
 
-    // 1. Create User entry (Direct insert, no OTP)
-    // We check if user exists first
+    // 1. Create or retrieve User entry
     const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')
       .eq('phone', phone)
       .maybeSingle();
 
-    let userId;
+    let userId: string;
 
     if (existingUser) {
       userId = existingUser.id;
-      // Update role and name just in case
       await supabaseAdmin
         .from('users')
         .update({ role: 'worker', name, language_pref, is_active: true })
@@ -42,17 +40,17 @@ export async function POST(req: Request) {
     } else {
       const { data: newUser, error: userError } = await supabaseAdmin
         .from('users')
-        .insert({
-          role: 'worker',
-          phone,
-          name,
-          language_pref,
-          is_active: true
-        })
+        .insert({ role: 'worker', phone, name, language_pref, is_active: true })
         .select('id')
         .single();
-      
+
       if (userError) throw userError;
+
+      // Explicit null check — insert should always return data on success, but guard anyway
+      if (!newUser || !newUser.id) {
+        throw new Error('User creation succeeded but returned no ID');
+      }
+
       userId = newUser.id;
     }
 
@@ -62,18 +60,19 @@ export async function POST(req: Request) {
       .upsert({
         user_id: userId,
         partner_node_id,
-        searchable_as: category || worker_type,
-        skills: tags || [],
-        bio: description,
+        type: worker_type || 'semi_skilled',
+        searchable_as: Array.isArray(category) ? category : (category ? [category] : []),
+        skill_tags: tags || [],
+        raw_description: description,
         aadhar_front_url,
         aadhar_back_url,
-        is_active: true,
         aadhar_verified: !!aadhar_front_url,
-        caller_id: has_smartphone ? null : phone, // Set caller_id for telephony if no smartphone
+        caller_id: has_smartphone ? null : phone,
         is_new: true,
         total_jobs: 0,
-        completion_rate: 100
-      })
+        completion_rate: 100,
+        strike_count: 0
+      }, { onConflict: 'user_id' })
       .select()
       .single();
 

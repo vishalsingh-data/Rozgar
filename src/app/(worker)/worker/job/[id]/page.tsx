@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import {
   ArrowLeft,
   MapPin,
@@ -28,24 +27,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
   DialogFooter
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import ImageUpload from '@/components/ImageUpload';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 export default function WorkerJobDetailsPage() {
   const { id: jobId } = useParams();
@@ -214,7 +210,7 @@ export default function WorkerJobDetailsPage() {
   const isAssignedToMe = job.accepted_worker_id === workerId;
 
   return (
-    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32", dmSans.className)}>
+    <div className={cn("flex min-h-screen w-full flex-col bg-[#F8F9F0] pb-32")}>
       
       {/* Header */}
       <header className="px-6 py-10 space-y-6">
@@ -225,7 +221,7 @@ export default function WorkerJobDetailsPage() {
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className={cn(sora.className, "text-2xl text-[#1B4332] leading-tight")}>{job.interpreted_category}</h1>
+            <h1 className={cn("[font-family:var(--font-heading)] text-2xl text-[#1B4332] leading-tight")}>{job.interpreted_category}</h1>
             <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest flex items-center gap-2">
               <MapPin className="size-3 text-[#40C057]" /> {job.pincode}
             </p>
@@ -247,7 +243,7 @@ export default function WorkerJobDetailsPage() {
             <div className="size-20 rounded-full bg-amber-50 flex items-center justify-center text-amber-500 mb-6">
               <RefreshCcw className="size-10 animate-spin" />
             </div>
-            <h3 className={cn(sora.className, "text-xl text-[#1B4332]")}>Price Change Pending</h3>
+            <h3 className={cn("[font-family:var(--font-heading)] text-xl text-[#1B4332]")}>Price Change Pending</h3>
             <p className="text-sm font-medium text-zinc-400 px-12 mt-2 leading-relaxed">
               We've notified the customer about the price change. Please wait for their approval before continuing work.
             </p>
@@ -369,7 +365,7 @@ export default function WorkerJobDetailsPage() {
                       </DialogTrigger>
                       <DialogContent className="rounded-[40px] border-none bg-white p-8 max-w-[400px]">
                         <DialogHeader>
-                          <DialogTitle className={cn(sora.className, "text-2xl text-[#1B4332]")}>New Estimate</DialogTitle>
+                          <DialogTitle className={cn("[font-family:var(--font-heading)] text-2xl text-[#1B4332]")}>New Estimate</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-6 py-4">
                           <div className="space-y-2">

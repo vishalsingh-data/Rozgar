@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sora, DM_Sans } from 'next/font/google';
 import { 
   Check, 
   ChevronRight, 
@@ -28,8 +27,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import ImageUpload from '@/components/ImageUpload';
 
-const sora = Sora({ subsets: ['latin'], weight: ['700', '800'] });
-const dmSans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '700'] });
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -152,7 +149,7 @@ export default function WorkerRegisterPage() {
   };
 
   return (
-    <div className={`flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] ${dmSans.className}`}>
+    <div className={`flex min-h-screen w-full flex-col items-center bg-[#F8F9F0] `}>
       <div className="flex w-full max-w-[430px] flex-col px-6 py-8">
         
         {/* Progress Header */}
@@ -173,7 +170,7 @@ export default function WorkerRegisterPage() {
         {/* Step 1: Skills */}
         {step === 1 && (
           <div className="space-y-6">
-            <h1 className={`${sora.className} text-3xl text-[#1B4332]`}>What work <br />do you do?</h1>
+            <h1 className={`[font-family:var(--font-heading)] text-3xl text-[#1B4332]`}>What work <br />do you do?</h1>
             
             {aiState === 'review' ? (
               <div className="space-y-6">
@@ -238,7 +235,7 @@ export default function WorkerRegisterPage() {
         {/* Step 2: Area & Availability */}
         {step === 2 && (
           <div className="space-y-8">
-            <h1 className={`${sora.className} text-3xl text-[#1B4332]`}>Your work <br />area</h1>
+            <h1 className={`[font-family:var(--font-heading)] text-3xl text-[#1B4332]`}>Your work <br />area</h1>
             
             <div className="space-y-6">
               <div className="space-y-3">
@@ -339,7 +336,7 @@ export default function WorkerRegisterPage() {
         {/* Step 3: Photo */}
         {step === 3 && (
           <div className="space-y-8">
-            <h1 className={`${sora.className} text-3xl text-[#1B4332]`}>Profile photo <br />(optional)</h1>
+            <h1 className={`[font-family:var(--font-heading)] text-3xl text-[#1B4332]`}>Profile photo <br />(optional)</h1>
             <p className="text-zinc-500">Profiles with photos get 2x more job offers from customers.</p>
             
             <div className="flex justify-center py-8">
@@ -374,7 +371,7 @@ export default function WorkerRegisterPage() {
         {/* Step 4: Summary & Go Live */}
         {step === 4 && (
           <div className="space-y-8">
-            <h1 className={`${sora.className} text-3xl text-[#1B4332]`}>You're <br />almost live!</h1>
+            <h1 className={`[font-family:var(--font-heading)] text-3xl text-[#1B4332]`}>You're <br />almost live!</h1>
             
             <Card className="rounded-3xl border-none bg-white shadow-xl shadow-[#1B4332]/5 overflow-hidden">
               <CardContent className="p-0">

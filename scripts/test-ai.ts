@@ -6,7 +6,7 @@ import { estimateWithGemini } from '../src/lib/gemini';
 async function testAI() {
   console.log('Testing Groq...');
   try {
-    const groqRes = await parseWithGroq('Test categorization for electrician');
+    const groqRes = await parseWithGroq('Test categorization for electrician', 'english');
     console.log('Groq OK:', groqRes);
   } catch (e: any) {
     console.error('Groq Failed:', e.message);

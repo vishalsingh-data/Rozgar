@@ -4,6 +4,8 @@ import { getAdjacentPincodes } from '@/lib/pincodes';
 import { skillsMatch } from '@/lib/skill-synonyms';
 import { sendSMS, sendWhatsApp } from '@/lib/twilio';
 
+const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rozgar.app';
+
 export async function POST(req: Request) {
   try {
     const { job_id } = await req.json();
@@ -23,16 +25,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    // 2. Get today's day abbreviation (e.g., 'mon', 'tue')
+    // 2. Get today's day abbreviation
     const today = new Date()
       .toLocaleDateString('en-US', { weekday: 'short' })
-      .toLowerCase(); // 'mon', 'tue', etc.
+      .toLowerCase();
 
     // 3. Build target pincodes list
     const targetPincodes = [job.pincode, ...getAdjacentPincodes(job.pincode)];
 
-    // 4. Fetch all nearby workers with low strikes — skill matching done in-memory
-    // (DB-level overlaps() is exact & case-sensitive; AI tags never perfectly match chip labels)
+    // 4. Fetch nearby workers with low strikes
     const { data: nearbyWorkers, error: workerError } = await supabaseAdmin
       .from('workers')
       .select('*, user:users!workers_user_id_fkey(name, is_active)')
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
       .in('pincode', targetPincodes);
 
     if (workerError) {
-      console.error('Worker Matching Error:', workerError);
+      console.error(`[Broadcast] job=${job_id} Worker fetch error:`, workerError);
       return NextResponse.json({ error: workerError.message }, { status: 500 });
     }
 
@@ -57,8 +58,8 @@ export async function POST(req: Request) {
     });
 
     console.log(
-      `[Broadcast] Job ${job_id} (${job.interpreted_category}): ` +
-      `${nearbyWorkers?.length ?? 0} nearby, ${activeMatchedWorkers.length} matched after skill+availability filter. ` +
+      `[Broadcast] job=${job_id} (${job.interpreted_category}): ` +
+      `${nearbyWorkers?.length ?? 0} nearby, ${activeMatchedWorkers.length} matched. ` +
       `Required tags: [${requiredTags.join(', ')}]`
     );
 
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
     }
 
     // 5. Create Job Pings
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const pings = activeMatchedWorkers.map(worker => ({
       job_id: job.id,
       worker_id: worker.user_id,
@@ -80,36 +81,44 @@ export async function POST(req: Request) {
       .insert(pings);
 
     if (pingError) {
-      console.error('Job Ping Error:', pingError);
+      console.error(`[Broadcast] job=${job_id} Ping insert error:`, pingError);
       return NextResponse.json({ error: 'Failed to create job pings' }, { status: 500 });
     }
 
-    // 6. Handle Notifications
-    const messageBody = `Rozgar Alert: New job for ${job.interpreted_category || 'worker'} at pincode ${job.pincode}. Open the app or call us to bid!`;
-    
-    // We run notifications asynchronously without blocking the response
-    Promise.all(activeMatchedWorkers.map(async (worker) => {
-      // FCM Push Mock
-      if (worker.fcm_token) {
-        console.log(`[PUSH] FCM push would fire to: ${worker.user?.name || 'Worker'} (ID: ${worker.user_id})`);
-      }
-
-      // Real Twilio Notifications
-      if (worker.caller_id) {
-        console.log(`[BROADCAST] Sending SMS & WhatsApp to: ${worker.caller_id} for job: ${job.interpreted_category}`);
-        // Send both concurrently
-        await Promise.all([
-          sendSMS(worker.caller_id, messageBody),
-          sendWhatsApp(worker.caller_id, messageBody)
-        ]);
-      }
-    })).catch(err => console.error('[Broadcast Notification Error]', err));
-
-    // 7. Update Job Status to 'bidding'
+    // 6. Update Job Status to 'bidding'
     await supabaseAdmin
       .from('jobs')
       .update({ status: 'bidding' })
       .eq('id', job_id);
+
+    // 7. Send notifications — await each worker individually so one failure doesn't block others
+    const deepLink = `${APP_BASE_URL}/worker/job/${job_id}`;
+    const messageBody = `Rozgar: New ${job.interpreted_category || 'job'} near ${job.pincode}. Open app to bid: ${deepLink}`;
+
+    const notificationResults = await Promise.allSettled(
+      activeMatchedWorkers.map(async (worker) => {
+        if (worker.fcm_token) {
+          console.log(`[PUSH] FCM to ${worker.user?.name || worker.user_id} for job ${job_id}`);
+        }
+        if (worker.caller_id) {
+          await Promise.all([
+            sendSMS(worker.caller_id, messageBody),
+            sendWhatsApp(worker.caller_id, messageBody)
+          ]);
+        }
+      })
+    );
+
+    const failed = notificationResults.filter(r => r.status === 'rejected');
+    if (failed.length > 0) {
+      failed.forEach((r, i) => {
+        const w = activeMatchedWorkers[i];
+        console.error(
+          `[Broadcast] Notification failed for job=${job_id} worker=${w?.user_id} phone=${w?.caller_id}:`,
+          (r as PromiseRejectedResult).reason
+        );
+      });
+    }
 
     return NextResponse.json({ workers_pinged: activeMatchedWorkers.length });
 
