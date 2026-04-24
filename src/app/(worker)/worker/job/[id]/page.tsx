@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Sora, DM_Sans } from 'next/font/google';
-import { 
+import {
   ArrowLeft,
-  MapPin, 
-  Clock, 
-  Phone, 
+  MapPin,
+  Clock,
+  Phone,
   Navigation,
   CheckCircle2,
   Loader2,
@@ -21,11 +21,13 @@ import {
   ChevronRight,
   Sparkles,
   RefreshCcw,
-  Plus
+  Plus,
+  Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Dialog, 
   DialogContent, 
@@ -415,12 +417,108 @@ export default function WorkerJobDetailsPage() {
             </div>
           )}
 
+          {/* Review section — shown when job is complete and worker was assigned */}
+          {job.status === 'complete' && isAssignedToMe && workerId && (
+            <WorkerReviewSection job={job} workerId={workerId} />
+          )}
+
           <div className="flex items-center justify-center gap-2 pt-8 opacity-20">
             <ShieldCheck className="size-4" />
             <span className="text-[8px] font-black uppercase tracking-widest">Rozgar Secure Session</span>
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function WorkerReviewSection({ job, workerId }: { job: any; workerId: string }) {
+  const [rating, setRating] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/reviews/submit?job_id=${job.id}&reviewer_id=${workerId}`)
+      .then(r => r.json())
+      .then(d => { if (d.review) setSubmitted(true); })
+      .finally(() => setChecked(true));
+  }, [job.id, workerId]);
+
+  if (!checked) return null;
+
+  if (submitted) return (
+    <div className="rounded-[32px] bg-[#40C057]/10 p-6 flex items-center gap-4">
+      <CheckCircle2 className="size-6 text-[#40C057] shrink-0" />
+      <p className="text-sm font-bold text-[#1B4332]">Thanks! Your review has been submitted.</p>
+    </div>
+  );
+
+  const handleSubmit = async () => {
+    if (!rating) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/reviews/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.id, reviewer_id: workerId, rating, comment })
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error);
+      }
+      setSubmitted(true);
+      toast.success('Review submitted!');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-[40px] bg-white border border-zinc-100 shadow-xl shadow-[#1B4332]/5 p-8 space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Rate Your Customer</h3>
+        <p className="text-lg font-black text-[#1B4332]">How was {job.customer?.name}?</p>
+      </div>
+
+      {/* Stars */}
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map(star => (
+          <button
+            key={star}
+            onMouseEnter={() => setHovered(star)}
+            onMouseLeave={() => setHovered(0)}
+            onClick={() => setRating(star)}
+            className="transition-transform active:scale-90"
+          >
+            <Star
+              className="size-10"
+              fill={(hovered || rating) >= star ? '#40C057' : 'transparent'}
+              stroke={(hovered || rating) >= star ? '#40C057' : '#D1D5DB'}
+              strokeWidth={1.5}
+            />
+          </button>
+        ))}
+      </div>
+
+      <Textarea
+        placeholder="Leave a note about this customer (optional)..."
+        value={comment}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setComment(e.target.value)}
+        className="rounded-2xl border-zinc-100 bg-[#F8F9F0] font-medium resize-none h-24"
+      />
+
+      <Button
+        disabled={!rating || loading}
+        onClick={handleSubmit}
+        className="h-14 w-full rounded-2xl bg-[#1B4332] text-white font-black text-base shadow-xl shadow-[#1B4332]/20"
+      >
+        {loading ? <Loader2 className="animate-spin" /> : 'Submit Review'}
+      </Button>
     </div>
   );
 }

@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import SLATimer from '@/components/SLATimer';
@@ -44,6 +45,8 @@ type Bid = {
       aadhar_verified: boolean;
       total_jobs: number;
       completion_rate: number;
+      avg_rating: number | null;
+      review_count: number;
       photo_url: string;
       pincode: string;
     }[]
@@ -60,6 +63,7 @@ export default function JobDetailsPage() {
   const [expandedBid, setExpandedBid] = useState<string | null>(null);
 
   const [renegotiation, setRenegotiation] = useState<any>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
   const fetchJobData = useCallback(async () => {
     try {
@@ -104,6 +108,8 @@ export default function JobDetailsPage() {
               aadhar_verified,
               total_jobs,
               completion_rate,
+              avg_rating,
+              review_count,
               photo_url,
               pincode
             )
@@ -120,6 +126,12 @@ export default function JobDetailsPage() {
       setLoading(false);
     }
   }, [jobId]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) setCustomerId(session.user.id);
+    });
+  }, []);
 
   useEffect(() => {
     fetchJobData();
@@ -346,7 +358,7 @@ export default function JobDetailsPage() {
         {/* State: Tracking */}
         {isTracking && (
           <div className="space-y-8">
-            <TrackingView job={job} />
+            <TrackingView job={job} customerId={customerId || ''} />
           </div>
         )}
       </main>
@@ -451,6 +463,8 @@ function BidCard({ bid, loading, isExpanded, onToggle, onSelect }: { bid: Bid, l
     aadhar_verified: false,
     total_jobs: 0,
     completion_rate: 100,
+    avg_rating: null,
+    review_count: 0,
     searchable_as: [],
     pincode: '',
   };
@@ -470,10 +484,17 @@ function BidCard({ bid, loading, isExpanded, onToggle, onSelect }: { bid: Bid, l
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-[#1B4332] text-lg leading-none">{bid.worker_profile.name}</h3>
-              <div className="flex items-center gap-1 text-[#40C057] font-bold text-xs">
-                <Star className="size-3 fill-[#40C057]" />
-                4.8
-              </div>
+              {profile.avg_rating ? (
+                <div className="flex items-center gap-1 text-[#40C057] font-bold text-xs">
+                  <Star className="size-3 fill-[#40C057]" />
+                  {profile.avg_rating.toFixed(1)}
+                </div>
+              ) : profile.is_new ? null : (
+                <div className="flex items-center gap-1 text-zinc-300 font-bold text-xs">
+                  <Star className="size-3" />
+                  <span>New</span>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -537,7 +558,99 @@ function BidCard({ bid, loading, isExpanded, onToggle, onSelect }: { bid: Bid, l
   );
 }
 
-function TrackingView({ job }: { job: any }) {
+function ReviewSection({ job, customerId }: { job: any; customerId: string }) {
+  const [rating, setRating] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/reviews/submit?job_id=${job.id}&reviewer_id=${customerId}`)
+      .then(r => r.json())
+      .then(d => { if (d.review) setSubmitted(true); })
+      .finally(() => setChecked(true));
+  }, [job.id, customerId]);
+
+  if (!checked) return null;
+
+  if (submitted) return (
+    <div className="rounded-[32px] bg-[#40C057]/10 p-6 flex items-center gap-4">
+      <CheckCircle2 className="size-6 text-[#40C057] shrink-0" />
+      <p className="text-sm font-bold text-[#1B4332]">Thanks! Your review has been submitted.</p>
+    </div>
+  );
+
+  const handleSubmit = async () => {
+    if (!rating) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/reviews/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.id, reviewer_id: customerId, rating, comment })
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error);
+      }
+      setSubmitted(true);
+      toast.success('Review submitted!');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-[40px] bg-white border border-zinc-100 shadow-xl shadow-[#1B4332]/5 p-8 space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Rate Your Pro</h3>
+        <p className="text-lg font-black text-[#1B4332]">How was {job.assigned_worker?.name}?</p>
+      </div>
+
+      {/* Stars */}
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map(star => (
+          <button
+            key={star}
+            onMouseEnter={() => setHovered(star)}
+            onMouseLeave={() => setHovered(0)}
+            onClick={() => setRating(star)}
+            className="transition-transform active:scale-90"
+          >
+            <Star
+              className="size-10"
+              fill={(hovered || rating) >= star ? '#40C057' : 'transparent'}
+              stroke={(hovered || rating) >= star ? '#40C057' : '#D1D5DB'}
+              strokeWidth={1.5}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Comment */}
+      <Textarea
+        placeholder="Share your experience (optional)..."
+        value={comment}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setComment(e.target.value)}
+        className="rounded-2xl border-zinc-100 bg-[#F8F9F0] font-medium resize-none h-24"
+      />
+
+      <Button
+        disabled={!rating || loading}
+        onClick={handleSubmit}
+        className="h-14 w-full rounded-2xl bg-[#1B4332] text-white font-black text-base shadow-xl shadow-[#1B4332]/20"
+      >
+        {loading ? <Loader2 className="animate-spin" /> : 'Submit Review'}
+      </Button>
+    </div>
+  );
+}
+
+function TrackingView({ job, customerId }: { job: any; customerId: string }) {
   const router = useRouter();
   const worker = job.assigned_worker;
   const workerProfile = worker?.workers?.[0] ?? { photo_url: null, completion_rate: 100 };
@@ -630,13 +743,20 @@ function TrackingView({ job }: { job: any }) {
             Pro is late? Reassign
           </Button>
         )}
-        <div className="rounded-2xl bg-white p-5 flex gap-4 border border-zinc-100">
-          <AlertCircle className="size-5 text-[#40C057] shrink-0" />
-          <p className="text-[10px] text-zinc-500 font-bold leading-relaxed uppercase tracking-wide">
-            Your payment is held securely in escrow. Only release it once the work is complete.
-          </p>
-        </div>
+        {job.status !== 'complete' && (
+          <div className="rounded-2xl bg-white p-5 flex gap-4 border border-zinc-100">
+            <AlertCircle className="size-5 text-[#40C057] shrink-0" />
+            <p className="text-[10px] text-zinc-500 font-bold leading-relaxed uppercase tracking-wide">
+              Your payment is held securely in escrow. Only release it once the work is complete.
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Review section — shown only after completion */}
+      {job.status === 'complete' && (
+        <ReviewSection job={job} customerId={customerId} />
+      )}
     </div>
   );
 }

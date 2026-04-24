@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { getAdjacentPincodes } from '@/lib/pincodes';
 import { skillsMatch } from '@/lib/skill-synonyms';
+import { sendSMS, sendWhatsApp } from '@/lib/twilio';
 
 export async function POST(req: Request) {
   try {
@@ -83,18 +84,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create job pings' }, { status: 500 });
     }
 
-    // 6. Handle Notifications (Logging for now)
-    activeMatchedWorkers.forEach(worker => {
+    // 6. Handle Notifications
+    const messageBody = `Rozgar Alert: New job for ${job.interpreted_category || 'worker'} at pincode ${job.pincode}. Open the app or call us to bid!`;
+    
+    // We run notifications asynchronously without blocking the response
+    Promise.all(activeMatchedWorkers.map(async (worker) => {
       // FCM Push Mock
       if (worker.fcm_token) {
         console.log(`[PUSH] FCM push would fire to: ${worker.user?.name || 'Worker'} (ID: ${worker.user_id})`);
       }
 
-      // Telephony Mock
-      if (process.env.MOCK_TELEPHONY === 'true' && worker.caller_id) {
-        console.log(`[IVR] MOCK IVR call to: ${worker.caller_id} for job: ${job.interpreted_category}`);
+      // Real Twilio Notifications
+      if (worker.caller_id) {
+        console.log(`[BROADCAST] Sending SMS & WhatsApp to: ${worker.caller_id} for job: ${job.interpreted_category}`);
+        // Send both concurrently
+        await Promise.all([
+          sendSMS(worker.caller_id, messageBody),
+          sendWhatsApp(worker.caller_id, messageBody)
+        ]);
       }
-    });
+    })).catch(err => console.error('[Broadcast Notification Error]', err));
 
     // 7. Update Job Status to 'bidding'
     await supabaseAdmin

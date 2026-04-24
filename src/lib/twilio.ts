@@ -40,6 +40,22 @@ export async function sendSMS(to: string, body: string): Promise<void> {
 }
 
 /**
+ * Send a WhatsApp message via Twilio Sandbox/API.
+ */
+export async function sendWhatsApp(to: string, body: string): Promise<void> {
+  try {
+    await twilioClient.messages.create({
+      from: `whatsapp:${twilioNumber}`,
+      to: `whatsapp:${to}`,
+      body
+    });
+  } catch (err: any) {
+    // WhatsApp failure is non-fatal
+    console.warn('[Twilio WhatsApp] Failed to send:', err.message);
+  }
+}
+
+/**
  * Validate that a webhook actually came from Twilio.
  * Pass `false` in dev to skip validation (no public URL yet).
  */
