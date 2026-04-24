@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
     if (new_photo_url) {
       try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
         const prompt = `Is the damage shown in this photo consistent with a repair cost of ₹${new_price} in India? The worker says: "${reason}". 
         Return JSON with keys: ai_verified (boolean), ai_note (string explaining your assessment).`;
 

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
     const prompt = `Given a worker's bio: "${description}", extract 3-5 specific skill tags (e.g., AC Repair, Plumbing, RO Service). 
     Also, identify the best category (searchable_as) for this worker from these options: [Skilled, Semi-skilled, Daily wage, Domestic, Driver, Other].
     Return ONLY JSON with keys: tags (array of strings), category (string).`;
